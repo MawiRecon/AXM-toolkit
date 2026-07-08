@@ -63,14 +63,24 @@ function currentTool() {
   return TOOLS.find(t => t.id === id) || TOOLS[0];
 }
 
+/* Read the ?v= from our own <script src="shell.js?v=X"> and append it to every
+   iframe/tool URL. Bumping ?v= in index.html cascades a cache-bust to all tools
+   so future updates propagate without users having to clear cache. */
+const V = (function(){
+  try { return new URL(document.currentScript.src).searchParams.get('v') || ''; }
+  catch(e){ return ''; }
+})();
+function busted(src){ return V ? (src + (src.includes('?')?'&':'?') + 'v=' + V) : src; }
+
 function activate(tool) {
   // swap iframe only if the target actually changed (avoids reload flicker)
-  const abs = new URL(tool.src, location.href).href;
-  if (frame.src !== abs) frame.src = tool.src;
+  const target = busted(tool.src);
+  const abs = new URL(target, location.href).href;
+  if (frame.src !== abs) frame.src = target;
 
   titleEl.textContent = tool.name;
   crumbEl.textContent = tool.desc;
-  openNew.href = tool.src;
+  openNew.href = busted(tool.src);
 
   for (const id in links) links[id].classList.toggle('active', id === tool.id);
   document.title = tool.name + ' · AXM Toolkit';
