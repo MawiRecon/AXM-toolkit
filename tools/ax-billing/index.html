@@ -484,6 +484,9 @@ function drainInbox(){
   let inbox; try{ inbox=JSON.parse(localStorage.getItem(INBOX)||'[]'); }catch(e){ inbox=[]; }
   if(!Array.isArray(inbox) || !inbox.length) return;
   localStorage.removeItem(INBOX);
+  // Land new IO-Tool rows at the BOTTOM of the grid (like Excel's natural append),
+  // not at sort_order:0 which would put them above all existing rows.
+  const maxSort = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
   const mapped = inbox.map((it,i)=>{
     const label = it.campaign || it.advertiser || '';
     const seed = newRow({
@@ -491,12 +494,24 @@ function drainInbox(){
       io_amount:it.io_amount!=null?+it.io_amount:null,
       campaign_start:it.start||null, campaign_end:it.end||null,
       year:it.year || (it.start? +String(it.start).slice(0,4):null),
-      source:'io-tool', sort_order:i
+      source:'io-tool', sort_order: maxSort + 1 + i
     });
     seed.campaign_name = Rebate.composeName(seed);
     return seed;
   });
-  store.bulkInsert(mapped).then(n=>{ toast(`${n} row(s) added from the IO Tool`, true); reload(); });
+  store.bulkInsert(mapped).then(n=>{
+    toast(`${n} row(s) added from the IO Tool`, true);
+    reload().then(()=>{
+      // scroll to the newly-added rows and briefly flash-highlight them so the user
+      // can't miss where the send landed
+      const w = $('wrap'); if(w) w.scrollTop = w.scrollHeight;
+      mapped.forEach(m=>{
+        const tr = document.querySelector(`#grid tbody tr[data-id="${m.id||''}"]`);
+        if(tr){ tr.style.transition='background .8s'; tr.style.background='var(--accent-tint)';
+          setTimeout(()=>{ tr.style.background=''; }, 1400); }
+      });
+    });
+  });
 }
 window.addEventListener('storage', e=>{ if(e.key===INBOX) drainInbox(); });
 
