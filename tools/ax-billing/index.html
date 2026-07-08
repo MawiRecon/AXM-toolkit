@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Ax Billing Tracker</title>
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:#3D3D3A;border-radius:999px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#4D4D49}
+
+  /* ---------- Toolbar ---------- */
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line-soft);
+    background:var(--bg);position:sticky;top:0;z-index:30;flex-wrap:wrap}
+  .bar h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .badge{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:5px}
+  .badge.local{background:var(--warn-tint);color:var(--warn)}
+  .badge.cloud{background:var(--ok-tint);color:var(--ok)}
+  .bar .spacer{flex:1}
+  .search{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:7px 11px;font:inherit;min-width:210px}
+  .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);padding:7px 12px;transition:.12s}
+  button:hover{border-color:var(--border-strong);background:var(--panel)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+  button.primary:hover{background:var(--accent-hover)}
+  button.ghost{background:transparent}
+  .count{color:var(--faint);font-size:12px;white-space:nowrap}
+
+  /* ---------- Grid ---------- */
+  .wrap{position:absolute;inset:57px 0 0 0;overflow:auto}
+  table{border-collapse:separate;border-spacing:0;table-layout:fixed}
+  thead th{position:sticky;top:0;z-index:20;background:#211F1D;color:var(--muted);
+    font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;
+    text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);border-right:1px solid var(--line-soft);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  thead th.sortable{cursor:pointer;user-select:none}
+  thead th.sortable:hover{color:var(--ink)}
+  thead th.sorted{color:var(--ink)}
+  thead th.filtered{color:var(--accent)}
+  thead th .arr{color:var(--accent);font-size:9px;margin-left:3px}
+  thead th .flt{color:var(--accent);font-size:11px;margin-left:4px}
+
+  /* the "+ Add row" row at the bottom of the grid — sticky-left, like Excel's "add row" */
+  tr.add-row td{border-bottom:0;background:transparent;height:34px}
+  tr.add-row td.add-btn{position:sticky;left:0;z-index:14;background:var(--bg);
+    cursor:pointer;color:var(--faint);padding:7px 12px;font-weight:600;font-size:12.5px;
+    display:flex;align-items:center;gap:6px;transition:.12s}
+  tr.add-row td.add-btn:hover{color:var(--accent);background:var(--accent-tint)}
+  tr.add-row td.add-btn .plus{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;
+    border-radius:4px;background:var(--panel-2);color:var(--ink);font-weight:700;font-size:14px;line-height:1}
+  tr.add-row td.add-btn:hover .plus{background:var(--accent);color:var(--accent-ink)}
+
+  /* column resize handle at the right edge of each header */
+  .resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;
+    user-select:none;z-index:24}
+  .resizer:hover,.resizer.resizing{background:var(--accent-tint)}
+  body.resizing,body.resizing *{cursor:col-resize !important}
+
+  /* ---------- Header dropdown (sort + per-column filter) ---------- */
+  .dd{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 14px 34px rgba(0,0,0,.55);z-index:70;width:270px;padding:6px;
+    font-size:12.5px;display:none;text-transform:none;letter-spacing:normal;color:var(--ink)}
+  .dd.show{display:block}
+  .dd .item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+  .dd .item:hover{background:var(--panel-2)}
+  .dd .item.disabled{color:var(--faint);cursor:default}
+  .dd .item.disabled:hover{background:transparent}
+  .dd .sep{height:1px;background:var(--line-soft);margin:5px 4px}
+  .dd .search-in{width:calc(100% - 4px);margin:2px 2px 6px;padding:6px 9px;border-radius:6px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:inherit}
+  .dd .search-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .dd .toggles{display:flex;gap:6px;padding:2px 4px 8px}
+  .dd .toggles button{flex:1;padding:5px 8px;font-size:11.5px;border-radius:6px}
+  .dd .vals{max-height:240px;overflow-y:auto;padding:0 2px}
+  .dd .vals label{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer}
+  .dd .vals label:hover{background:var(--panel-2)}
+  .dd .vals input{accent-color:var(--accent);cursor:pointer;flex:0 0 auto}
+  .dd .vals .val{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dd .vals .val.blank{color:var(--faint);font-style:italic}
+  .dd .vals .none{color:var(--faint);font-style:italic;padding:6px 8px;font-size:12px}
+  th.grp{text-align:center;font-size:9.5px;color:var(--faint);border-bottom:1px solid var(--line-soft);padding:5px}
+  tbody td{padding:0;border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);
+    white-space:nowrap;height:32px;position:relative}
+  .cell{padding:6px 9px;min-height:32px;height:100%;display:flex;align-items:center;cursor:text;
+    overflow:hidden;text-overflow:ellipsis}
+  .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums}
+  .cell.derived{cursor:default;color:var(--muted);background:rgba(255,255,255,0.015)}
+  .cell.neg{color:var(--err)}
+  .cell.placeholder{color:var(--faint);font-style:italic}
+  td.sticky,th.sticky{position:sticky;left:0;z-index:15;background:var(--bg)}
+  thead th.sticky{z-index:25;background:#211F1D}
+  tbody tr:hover td{background:rgba(255,255,255,0.022)}
+  tbody tr:hover td.sticky{background:#2b2b28}
+  .ov-dot{position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .cell input,.cell select{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:0;margin:0}
+  td.editing{box-shadow:inset 0 0 0 2px var(--accent);background:var(--panel-2)}
+  td.editing .cell{padding:5px 8px}
+  .chk{display:flex;align-items:center;justify-content:center;height:100%}
+  .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+  td.act{border-right:0}
+  .del{background:transparent;border:0;color:var(--faint);padding:6px 8px;border-radius:6px}
+  .del:hover{color:var(--err);background:var(--err-tint)}
+  tfoot td{position:sticky;bottom:0;background:#211F1D;border-top:1px solid var(--line);
+    padding:8px 9px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;z-index:18}
+  tfoot td.sticky{left:0;z-index:22;text-align:left;color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em}
+
+  /* ---------- Login gate ---------- */
+  .gate{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:100}
+  .gate.show{display:flex}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px;width:340px;text-align:center}
+  .card .logo{width:44px;height:44px;border-radius:11px;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-weight:800;margin:0 auto 14px}
+  .card h2{margin:0 0 4px;font-size:17px}
+  .card p{margin:0 0 18px;color:var(--faint);font-size:12.5px}
+  .card input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);font:inherit;margin-bottom:10px}
+  .card input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+  .card button{width:100%}
+  .gate-err{color:var(--err);font-size:12px;min-height:16px;margin-bottom:6px}
+
+  /* ---------- Toast ---------- */
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 16px;
+    color:var(--ink);font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:120;
+    box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{border-color:rgba(110,159,131,.5)}
+  .empty{position:absolute;inset:57px 0 0 0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;color:var(--faint);gap:14px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1><span>Ax Billing Tracker</span><span id="modeBadge" class="badge local">Local</span></h1>
+  <span class="spacer"></span>
+  <input id="search" class="search" type="text" placeholder="Filter campaigns, advertisers, entities…">
+  <span id="count" class="count"></span>
+  <button id="addBtn" class="primary">+ Add row</button>
+  <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
+  <button id="exportBtn" class="ghost">Export CSV</button>
+  <button id="signout" class="ghost" style="display:none">Sign out</button>
+</div>
+
+<div id="wrap" class="wrap"><table id="grid"></table></div>
+<div id="empty" class="empty" style="display:none">
+  <div>No rows yet.</div>
+  <div style="display:flex;gap:10px">
+    <button id="emptyAdd" class="primary">+ Add your first row</button>
+    <button id="emptyImport" class="ghost">Import the 2026 rows</button>
+  </div>
+</div>
+
+<div id="gate" class="gate">
+  <div class="card">
+    <div class="logo">AX</div>
+    <h2>Billing Tracker</h2>
+    <p>Enter your PIN to continue.</p>
+    <div id="gateErr" class="gate-err"></div>
+    <input id="gatePw" type="password" inputmode="numeric" autocomplete="off" spellcheck="false"
+           placeholder="••••••" style="text-align:center;letter-spacing:.35em;font-size:18px">
+    <button id="gateBtn" class="primary">Unlock</button>
+  </div>
+</div>
+
+<div id="dd" class="dd" role="menu"></div>
+<div id="toast" class="toast"></div>
+
+<script src="config.js"></script>
+<script src="rebate.js"></script>
+<script src="store.js"></script>
+<script>
+"use strict";
+const CFG = window.AX_BILLING_CONFIG;
+const $ = id => document.getElementById(id);
+
+/* ---------- column model (sheet order A..AA) ---------- */
+const COLS = [
+  {k:'campaign_name',     lt:'A', label:'Campaign (IO name)', type:'text',  w:270, sticky:true},
+  {k:'month',             lt:'B', label:'End Month',          type:'dtext', w:92},
+  {k:'year',              lt:'C', label:'Year',               type:'dtext', w:62},
+  {k:'campaign_start',    lt:'D', label:'Start',              type:'date',  w:118},
+  {k:'campaign_end',      lt:'E', label:'End',                type:'date',  w:118},
+  {k:'entity',            lt:'F', label:'Entity',             type:'text',  w:128},
+  {k:'advertiser',        lt:'G', label:'Advertiser',         type:'text',  w:168},
+  {k:'io_amount',         lt:'H', label:'IO Amount',          type:'money', w:108},
+  {k:'actual_spend',      lt:'I', label:'Actualized Spend',   type:'money', w:120},
+  {k:'delta',             lt:'J', label:'Delta',              type:'dmoney',w:96},
+  {k:'rebate_pct',        lt:'K', label:'Rebate %',           type:'pct',   w:84},
+  {k:'rebate_value',      lt:'L', label:'Rebate Value',       type:'dmoney',w:108},
+  {k:'sent_to_grapeseed', lt:'M', label:'Sent to Grapeseed',  type:'dmoney',w:130},
+  {k:'margin',            lt:'N', label:'Actualized Margin',  type:'pct',   w:112},
+  {k:'gross_profit',      lt:'O', label:'Gross Profit',       type:'dmoney',w:108},
+  {k:'backend_rebate',    lt:'P', label:'Total Back-End Rebate', type:'omoney', ov:'backend_rebate_override',  w:142},
+  {k:'difference_owed',   lt:'Q', label:'Difference Owed',    type:'omoney', ov:'difference_owed_override', w:126},
+  {k:'previous_backend',  lt:'R', label:'Previous Back-End',  type:'money', w:120},
+  {k:'backend_adjustment',lt:'S', label:'Back-End Adj.',      type:'money', w:106},
+  {k:'amount_paid',       lt:'T', label:'Amount Paid',        type:'money', w:108},
+  {k:'io_paid',           lt:'U', label:'IO Paid',            type:'bool',  w:66},
+  {k:'rebate_paid',       lt:'V', label:'Rebate Paid',        type:'bool',  w:78},
+  {k:'delta_status',      lt:'W', label:'Delta Status',       type:'text',  w:112},
+  {k:'invoice_no',        lt:'X', label:'Invoice #',          type:'text',  w:100},
+  {k:'bill_direct',       lt:'Y', label:'Bill Client Direct', type:'bool',  w:88},
+  {k:'notes',             lt:'Z', label:'Notes',              type:'text',  w:220},
+  {k:'internal_note',     lt:'AA',label:'Sara/Jon Only',      type:'text',  w:150},
+];
+const STORED = COLS.filter(c=>!['dtext','dmoney'].includes(c.type)).map(c=>c.k)
+  .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
+const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1,gross_profit:1,backend_rebate:1,amount_paid:1};
+
+/* ---------- formatting ---------- */
+const money = v => v==null||v===''||isNaN(v) ? '' :
+  (v<0?'-':'')+'$'+Math.abs(+v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pctFmt = v => v==null||v===''||isNaN(v) ? '' : (+v*100).toLocaleString('en-US',{maximumFractionDigits:2})+'%';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- state ---------- */
+let store, rows=[], filter='', sortKey=null, sortDir=1;
+let filters = {};                          // colKey -> Set(filterKey) OR undefined = no filter
+const COL_W_KEY = 'ax_billing_col_widths_v1';
+let colWidths = (()=>{ try{ return JSON.parse(localStorage.getItem(COL_W_KEY)||'{}'); }catch(e){ return {}; }})();
+function widthOf(c){ return colWidths[c.k] || c.w; }
+function persistWidths(){ localStorage.setItem(COL_W_KEY, JSON.stringify(colWidths)); }
+function filterKey(v){
+  if(v===null||v===undefined||v==='') return '__blank__';
+  if(typeof v==='boolean') return v?'true':'false';
+  return String(v);
+}
+function filterDisplay(v, col, row){
+  if(v===null||v===undefined||v==='') return '(blank)';
+  if(typeof v==='boolean') return v?'Yes':'No';
+  return displayVal(col, row) || String(v);
+}
+
+/* pull the seven derived values onto a copy of the row for rendering */
+function withDerived(r){ return Object.assign({}, r, Rebate.derive(r)); }
+
+function displayVal(c, r){
+  const v = r[c.k];
+  switch(c.type){
+    case 'money': case 'dmoney': case 'omoney': return money(v);
+    case 'pct': return pctFmt(v);
+    case 'date': return v || '';
+    case 'int': return v==null?'':v;
+    default: return v==null?'':v;
+  }
+}
+
+/* ---------- filtered / sorted list ---------- */
+function currentList(){
+  let list = rows.map(withDerived);
+  if(filter){
+    list = list.filter(r=>{
+      const hay = (r.campaign_name+' '+r.advertiser+' '+r.entity+' '+r.notes+' '+r.invoice_no).toLowerCase();
+      return hay.includes(filter);
+    });
+  }
+  for(const k in filters){
+    const allowed = filters[k];
+    list = list.filter(r=> allowed.has(filterKey(r[k])));
+  }
+  if(sortKey){
+    const dir = sortDir;
+    list.sort((a,b)=>{
+      let va=a[sortKey], vb=b[sortKey];
+      const na=(va==null||va===''), nb=(vb==null||vb==='');
+      if(na&&nb) return 0; if(na) return 1; if(nb) return -1;      // blanks always last
+      if(typeof va==='number'&&typeof vb==='number') return (va-vb)*dir;
+      if(typeof va==='boolean'||typeof vb==='boolean') return ((va?1:0)-(vb?1:0))*dir;
+      return String(va).localeCompare(String(vb),undefined,{numeric:true})*dir;
+    });
+  }
+  return list;
+}
+function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0); }
+
+/* ---------- render ---------- */
+function render(){
+  const list = currentList();
+  const shown = list.length;
+  const total = rows.length;
+  $('count').textContent = shown + (activeFilterCount()?(' of '+total):'') + ' rows';
+  // Import button is a one-time seed tool — hide the moment there's any data
+  const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
+  $('empty').style.display = total===0 ? 'flex':'none';
+  $('wrap').style.display  = total===0 ? 'none':'block';
+  if(total===0){ $('grid').innerHTML=''; return; }
+
+  // colgroup — table-layout:fixed reads widths from here so resize works.
+  // Set the table's explicit width to the sum of column widths, otherwise the
+  // browser proportionally stretches the columns instead of honoring them.
+  const totalW = COLS.reduce((s,c)=>s+widthOf(c),0) + 38;
+  $('grid').style.width = totalW + 'px';
+  let h = '<colgroup>';
+  COLS.forEach(c=>{ h += `<col data-cw="${c.k}" style="width:${widthOf(c)}px">`; });
+  h += '<col style="width:38px"></colgroup>';
+
+  h += '<thead><tr>';
+  COLS.forEach(c=>{
+    const active = sortKey===c.k;
+    const arrow  = active ? `<span class="arr">${sortDir>0?'▲':'▼'}</span>` : '';
+    const filt   = filters[c.k] ? '<span class="flt" title="Filter active">▼</span>' : '';
+    h += `<th class="sortable ${c.sticky?'sticky':''} ${active?'sorted':''} ${filters[c.k]?'filtered':''}" `
+       + `data-sk="${c.k}" title="Sort / filter ${esc(c.label)}">`
+       + `${esc(c.label)}${arrow}${filt}`
+       + `<span class="resizer" data-rz="${c.k}"></span></th>`;
+  });
+  h += '<th></th></tr></thead><tbody>';
+
+  list.forEach(r=>{
+    h += '<tr data-id="'+r.id+'">';
+    COLS.forEach(c=>{
+      if(c.type==='bool'){
+        h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${r[c.k]?'checked':''}></div></td>`;
+        return;
+      }
+      const derived = c.type==='dtext'||c.type==='dmoney';
+      const num = ['money','dmoney','omoney','pct','int'].includes(c.type);
+      const val = displayVal(c, r);
+      const neg = num && typeof r[c.k]==='number' && r[c.k]<0;
+      const isOv = c.type==='omoney' && r['_'+c.k+'_isOverride'];
+      const cls = ['cell', num?'num':'', derived?'derived':'', neg?'neg':'', (val===''&&!derived?'placeholder':'')].join(' ');
+      const ph  = (val===''&&!derived) ? (c.type==='date'?'—':'…') : '';
+      h += `<td data-k="${c.k}" ${c.sticky?'class="sticky"':''}>`
+         + (isOv?'<span class="ov-dot" title="Overridden — clear the cell to revert to the formula"></span>':'')
+         + `<div class="${cls}">${val===''?ph:esc(val)}</div></td>`;
+    });
+    h += '<td class="act"><button class="del" title="Delete row">✕</button></td>';
+    h += '</tr>';
+  });
+  // "+ Add row" — sticky-left cell that always stays visible while scrolling
+  h += `<tr class="add-row" data-add-row><td class="add-btn" title="Add a new row">`
+     + `<span class="plus">+</span><span>Add row</span></td>`
+     + `<td colspan="${COLS.length}"></td></tr>`;
+  h += '</tbody>';
+
+  // totals footer
+  const tot = {}; Object.keys(TOTALCOLS).forEach(k=>tot[k]=0);
+  list.forEach(r=>Object.keys(TOTALCOLS).forEach(k=>{ if(typeof r[k]==='number') tot[k]+=r[k]; }));
+  h += '<tfoot><tr>';
+  COLS.forEach((c,i)=>{
+    if(i===0){ h += `<td class="sticky">Totals · ${list.length}</td>`; return; }
+    h += `<td>${TOTALCOLS[c.k]?money(tot[c.k]):''}</td>`;
+  });
+  h += '<td></td></tr></tfoot>';
+
+  $('grid').innerHTML = h;
+}
+
+/* ---------- inline editing ---------- */
+function beginEdit(td){
+  const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
+  const col = COLS.find(c=>c.k===k); if(!col) return;
+  if(['dtext','dmoney'].includes(col.type)) return;      // truly read-only
+  const row = rows.find(r=>r.id===id); if(!row) return;
+  if(td.classList.contains('editing')) return;
+
+  let cur = row[k];
+  if(col.type==='pct' && cur!=null && cur!=='') cur = +(cur*100);          // 0.15 -> 15
+  if(col.type==='omoney') cur = (row[col.ov]!=null? row[col.ov] : '');     // edit the override only
+
+  const inputType = col.type==='date'?'date':(['money','omoney','pct','int'].includes(col.type)?'number':'text');
+  const step = col.type==='pct'?'0.01':(col.type==='int'?'1':(['money','omoney'].includes(col.type)?'0.01':''));
+  td.classList.add('editing');
+  td.innerHTML = `<div class="cell ${['money','omoney','pct','int'].includes(col.type)?'num':''}">`
+    + `<input type="${inputType}" ${step?`step="${step}"`:''} value="${cur==null?'':String(cur).replace(/"/g,'&quot;')}"></div>`;
+  const inp = td.querySelector('input'); inp.focus(); if(inputType!=='date') inp.select();
+
+  let done=false;
+  const commit = save=>{
+    if(done) return; done=true;
+    if(save){
+      let v = inp.value.trim();
+      if(col.type==='omoney'){
+        row[col.ov] = v==='' ? null : parseFloat(v);        // empty -> revert to formula
+      } else if(['money','pct','int'].includes(col.type)){
+        let num = v==='' ? null : parseFloat(v);
+        if(col.type==='pct' && num!=null) num = num/100;      // 15 -> 0.15
+        row[k] = num;
+      } else {
+        row[k] = v;
+      }
+      persist(row);
+    }
+    render();
+  };
+  inp.addEventListener('blur', ()=>commit(true));
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(true); }
+    else if(e.key==='Escape'){ e.preventDefault(); commit(false); }
+  });
+}
+
+function persist(row){
+  const clean = {}; STORED.forEach(k=>{ if(row[k]!==undefined) clean[k]=row[k]; });
+  store.upsert(clean).catch(err=>toast('Save failed: '+err.message, false));
+}
+
+/* ---------- events ---------- */
+$('wrap').addEventListener('click', e=>{
+  if(e.target.closest('.resizer')) return;                       // resize handled separately
+  const th = e.target.closest('th[data-sk]');
+  if(th){ openDropdown(th.dataset.sk, th); return; }
+  if(e.target.closest('[data-add-row]')){ addRow(); return; }
+  const del = e.target.closest('.del');
+  if(del){ const tr=del.closest('tr'); if(confirm('Delete this row?')){ store.remove(tr.dataset.id).then(reload); } return; }
+  const chk = e.target.closest('.chk input');
+  if(chk){ const tr=chk.closest('tr'); const k=chk.closest('td').dataset.k;
+    const row=rows.find(r=>r.id===tr.dataset.id); if(row){ row[k]=chk.checked; persist(row); } return; }
+  const td = e.target.closest('td[data-k]');
+  if(td && !e.target.closest('.chk')) beginEdit(td);
+});
+$('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
+
+function newRow(seed){
+  const max = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
+  return Object.assign({ rebate_pct:0.15, source:'manual', sort_order:max+1,
+    io_paid:false, rebate_paid:false, bill_direct:false }, seed||{});
+}
+function addRow(seed){
+  store.upsert(newRow(seed)).then(()=>reload().then(()=>{
+    const w=$('wrap'); w.scrollTop=w.scrollHeight;
+  }));
+}
+$('addBtn').onclick = ()=>addRow();
+$('emptyAdd').onclick = ()=>addRow();
+
+/* ---------- import (local testing) ---------- */
+function doImport(){
+  fetch('data/seed.local.json').then(r=>{
+    if(!r.ok) throw new Error('seed.local.json not found (run the extractor)');
+    return r.json();
+  }).then(seed=>{
+    if(rows.length && !confirm(`Append ${seed.length} imported rows to the ${rows.length} already here?`)) return;
+    const mapped = seed.map((s,i)=>({
+      campaign_name:s.campaign||'', campaign_label:s.campaign||'',
+      year:s.year, campaign_start:s.start, campaign_end:s.end,
+      entity:(s.entity||'').trim(), advertiser:(s.advertiser||'').trim(),
+      io_amount:s.io_amount, actual_spend:s.actual_spend, rebate_pct:s.rebate_pct==null?0.15:s.rebate_pct,
+      margin:s.margin, previous_backend:s.previous_backend, backend_adjustment:s.backend_adjustment,
+      amount_paid:s.amount_paid, io_paid:!!s.io_paid, rebate_paid:!!s.rebate_paid,
+      delta_status:s.delta_status||'', invoice_no:s.invoice_no||'', bill_direct:!!s.bill_direct,
+      notes:s.notes||'', internal_note:s.internal_note||'',
+      backend_rebate_override:s.backend_rebate_override, difference_owed_override:s.difference_owed_override,
+      source:'import', sort_order:i+1
+    }));
+    store.bulkInsert(mapped).then(n=>{ toast(`Imported ${n} rows`, true); reload(); });
+  }).catch(err=>toast(err.message, false));
+}
+$('importBtn').onclick = doImport;
+$('emptyImport').onclick = doImport;
+
+/* ---------- export ---------- */
+$('exportBtn').onclick = ()=>{
+  const heads = COLS.map(c=>c.label);
+  const lines = [heads.map(csv).join(',')];
+  rows.map(withDerived).forEach(r=>{
+    lines.push(COLS.map(c=>{
+      if(c.type==='bool') return r[c.k]?'TRUE':'FALSE';
+      if(['money','dmoney','omoney'].includes(c.type)) return r[c.k]==null?'':r[c.k];
+      if(c.type==='pct') return r[c.k]==null?'':r[c.k];
+      return r[c.k]==null?'':r[c.k];
+    }).map(csv).join(','));
+  });
+  const blob = new Blob([lines.join('\r\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'billing-export-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+};
+function csv(v){ v=v==null?'':String(v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+
+/* ---------- IO Tool handoff (same-origin localStorage inbox) ---------- */
+const INBOX = 'ax_billing_inbox';
+function drainInbox(){
+  let inbox; try{ inbox=JSON.parse(localStorage.getItem(INBOX)||'[]'); }catch(e){ inbox=[]; }
+  if(!Array.isArray(inbox) || !inbox.length) return;
+  localStorage.removeItem(INBOX);
+  const mapped = inbox.map((it,i)=>{
+    const label = it.campaign || it.advertiser || '';
+    const seed = newRow({
+      campaign_label:label, entity:(it.entity||'').trim(), advertiser:(it.advertiser||'').trim(),
+      io_amount:it.io_amount!=null?+it.io_amount:null,
+      campaign_start:it.start||null, campaign_end:it.end||null,
+      year:it.year || (it.start? +String(it.start).slice(0,4):null),
+      source:'io-tool', sort_order:i
+    });
+    seed.campaign_name = Rebate.composeName(seed);
+    return seed;
+  });
+  store.bulkInsert(mapped).then(n=>{ toast(`${n} row(s) added from the IO Tool`, true); reload(); });
+}
+window.addEventListener('storage', e=>{ if(e.key===INBOX) drainInbox(); });
+
+/* ---------- header dropdown: sort + per-column value filter ----------
+   Behaves like Google Sheets: click a header to see Sort A→Z / Z→A and a
+   searchable checkbox list of unique values in that column. Uncheck to hide.
+   Multiple columns' filters combine as AND. */
+function openDropdown(colKey, th){
+  const col = COLS.find(c=>c.k===colKey); if(!col) return;
+  const dd = $('dd');
+  if(dd.classList.contains('show') && dd.dataset.col===colKey){ closeDropdown(); return; }
+
+  const derivedList = rows.map(withDerived);
+  const uniq = new Map();                                 // filterKey -> {display, sortableRaw}
+  derivedList.forEach(r=>{
+    const v = r[colKey], k = filterKey(v);
+    if(!uniq.has(k)) uniq.set(k, {display: filterDisplay(v,col,r), raw: v});
+  });
+  const entries = [...uniq.entries()].sort((a,b)=>{
+    if(a[0]==='__blank__') return 1;                       // blanks last
+    if(b[0]==='__blank__') return -1;
+    const va=a[1].raw, vb=b[1].raw;
+    if(typeof va==='number'&&typeof vb==='number') return va-vb;
+    return String(va).localeCompare(String(vb),undefined,{numeric:true});
+  });
+  const allowed = filters[colKey];                         // undefined => all shown
+
+  const sortActive = sortKey===colKey;
+  let html = '';
+  html += `<div class="item" data-act="sort-asc">↑ Sort ascending (A → Z / oldest → newest)</div>`;
+  html += `<div class="item" data-act="sort-desc">↓ Sort descending (Z → A / newest → oldest)</div>`;
+  html += sortActive
+    ? `<div class="item" data-act="sort-clear">✕ Clear sort</div>`
+    : `<div class="item disabled">No sort applied</div>`;
+  html += `<div class="sep"></div>`;
+  html += `<input class="search-in" placeholder="Search values…" data-act="search">`;
+  html += `<div class="toggles"><button data-act="all">Select all</button><button data-act="none">Clear</button></div>`;
+  html += entries.length
+    ? `<div class="vals">` + entries.map(([k,{display}])=>{
+        const isBlank = k==='__blank__';
+        const checked = !allowed || allowed.has(k);
+        return `<label><input type="checkbox" data-vk="${esc(k)}" ${checked?'checked':''}>`
+             + `<span class="val ${isBlank?'blank':''}">${esc(display)}</span></label>`;
+      }).join('') + `</div>`
+    : `<div class="none">No values in this column yet.</div>`;
+  if(filters[colKey]) html += `<div class="sep"></div><div class="item" data-act="clear-filter">✕ Clear filter</div>`;
+
+  dd.innerHTML = html;
+  dd.dataset.col = colKey;
+  dd.classList.add('show');
+
+  const rect = th.getBoundingClientRect();
+  const ddW = dd.offsetWidth || 270;
+  const left = Math.max(6, Math.min(rect.left, window.innerWidth - ddW - 6));
+  const top  = Math.min(window.innerHeight - dd.offsetHeight - 6, rect.bottom + 4);
+  dd.style.left = left + 'px';
+  dd.style.top  = top  + 'px';
+  setTimeout(()=>{ const s=dd.querySelector('.search-in'); if(s) s.focus(); }, 0);
+}
+function closeDropdown(){ const dd=$('dd'); dd.classList.remove('show'); dd.dataset.col=''; }
+
+function updateFilterFromCheckboxes(){
+  const dd = $('dd'); const colKey = dd.dataset.col; if(!colKey) return;
+  const boxes = [...dd.querySelectorAll('input[type=checkbox][data-vk]')];
+  const allowed = new Set(); boxes.forEach(b=>{ if(b.checked) allowed.add(b.dataset.vk); });
+  if(allowed.size === boxes.length) delete filters[colKey];
+  else filters[colKey] = allowed;
+  render();
+}
+
+$('dd').addEventListener('click', e=>{
+  const dd = $('dd'); const colKey = dd.dataset.col;
+  const cb = e.target.closest('input[type=checkbox][data-vk]');
+  if(cb){ updateFilterFromCheckboxes(); return; }
+  const it = e.target.closest('[data-act]'); if(!it) return;
+  const act = it.dataset.act;
+  if(act==='sort-asc'){ sortKey=colKey; sortDir=1;  closeDropdown(); render(); }
+  else if(act==='sort-desc'){ sortKey=colKey; sortDir=-1; closeDropdown(); render(); }
+  else if(act==='sort-clear'){ sortKey=null; closeDropdown(); render(); }
+  else if(act==='clear-filter'){ delete filters[colKey]; closeDropdown(); render(); }
+  else if(act==='all'){ dd.querySelectorAll('input[type=checkbox][data-vk]').forEach(b=>b.checked=true); updateFilterFromCheckboxes(); }
+  else if(act==='none'){ dd.querySelectorAll('input[type=checkbox][data-vk]').forEach(b=>b.checked=false); updateFilterFromCheckboxes(); }
+});
+$('dd').addEventListener('input', e=>{
+  if(!e.target.classList.contains('search-in')) return;
+  const q = e.target.value.trim().toLowerCase();
+  $('dd').querySelectorAll('.vals label').forEach(l=>{
+    l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+document.addEventListener('mousedown', e=>{
+  const dd=$('dd'); if(!dd.classList.contains('show')) return;
+  if(e.target.closest('#dd') || e.target.closest('th[data-sk]')) return;
+  closeDropdown();
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDropdown(); });
+
+/* ---------- column resize ---------- */
+$('wrap').addEventListener('pointerdown', e=>{
+  const rz = e.target.closest('.resizer'); if(!rz) return;
+  e.preventDefault(); e.stopPropagation();
+  const key   = rz.dataset.rz;
+  const col   = $('grid').querySelector(`col[data-cw="${key}"]`);
+  const th    = rz.closest('th');
+  if(!col || !th) return;
+  const startX = e.clientX;
+  const startW = th.getBoundingClientRect().width;
+  rz.setPointerCapture(e.pointerId);
+  rz.classList.add('resizing'); document.body.classList.add('resizing');
+  function onMove(ev){
+    const w = Math.max(48, Math.round(startW + (ev.clientX - startX)));
+    col.style.width = w + 'px';
+    colWidths[key] = w;
+    const total = COLS.reduce((s,c)=>s+widthOf(c),0) + 38;
+    $('grid').style.width = total + 'px';
+  }
+  function onUp(){
+    rz.releasePointerCapture(e.pointerId);
+    rz.classList.remove('resizing'); document.body.classList.remove('resizing');
+    rz.removeEventListener('pointermove', onMove);
+    rz.removeEventListener('pointerup',   onUp);
+    persistWidths();
+  }
+  rz.addEventListener('pointermove', onMove);
+  rz.addEventListener('pointerup',   onUp);
+});
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg, ok){
+  const t=$('toast'); t.textContent=msg; t.className='toast show'+(ok?' ok':'');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.className='toast',2600);
+}
+
+/* ---------- load ---------- */
+function reload(){ return store.list().then(r=>{ rows=r; render(); }); }
+
+/* ---------- boot ---------- */
+function boot(){
+  store = window.makeStore();
+  $('modeBadge').textContent = store.mode==='supabase'?'Cloud':'Local';
+  $('modeBadge').className = 'badge '+(store.mode==='supabase'?'cloud':'local');
+  store.onChange(()=>reload());
+  Promise.resolve(store.needsAuth()).then(need=>{
+    if(need){ showGate(); } else { afterAuth(); }
+  });
+}
+function afterAuth(){
+  $('gate').classList.remove('show');
+  if(store.mode==='supabase') $('signout').style.display='';
+  reload().then(drainInbox);
+}
+function showGate(){
+  $('gate').classList.add('show');
+  $('gatePw').focus();
+  $('gateBtn').onclick = ()=>{
+    const pw=$('gatePw').value;
+    $('gateErr').textContent='';
+    store.signIn(pw).then(afterAuth).catch(err=>{ $('gateErr').textContent='Incorrect PIN.'; });
+  };
+  $('gatePw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('gateBtn').click(); });
+}
+$('signout').onclick = ()=> store.signOut().then(()=>location.reload());
+
+/* Supabase mode needs the client lib; load it then boot. Local mode boots now. */
+if(CFG.BACKEND==='supabase'){
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload=boot; s.onerror=()=>toast('Could not load supabase-js',false);
+  document.head.appendChild(s);
+}else{ boot(); }
+</script>
+</body>
+</html>

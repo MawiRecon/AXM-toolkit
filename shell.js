@@ -20,6 +20,14 @@ const TOOLS = [
     src: 'tools/primary-tracker/index.html',
     // calendar
     icon: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 15h.01"/><path d="M12 15h.01"/><path d="M16 15h.01"/></svg>'
+  },
+  {
+    id: 'ax-billing',
+    name: 'Billing Tracker',
+    desc: 'Campaign billing & rebate ledger',
+    src: 'tools/ax-billing/index.html',
+    // ledger / dollar-table
+    icon: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v16"/><path d="M14 13h2"/><path d="M14 16h2"/></svg>'
   }
 ];
 

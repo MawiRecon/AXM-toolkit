@@ -14,3 +14,7 @@ desktop.ini
 
 # Local backup snapshots from the tracker's Backup JSON button
 roster-backup-*.json
+
+# Ax Billing Tracker — real client billing data must never be committed
+tools/ax-billing/data/
+billing-backup-*.json

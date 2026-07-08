@@ -263,6 +263,7 @@
 
   <div class="actions" style="margin-top:16px">
     <button id="download">Generate &amp; download IO.pdf</button>
+    <button id="send_billing">Send to Billing</button>
     <button id="create_deal">Create Pipedrive deal</button>
     <button id="copyjson" class="sec">Copy mapping as JSON</button>
     <button id="pipedrive_settings" class="sec" type="button" title="Configure Pipedrive connection">⚙ Pipedrive</button>
@@ -1659,6 +1660,37 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   $("suggestcpm").onclick = suggestCPM;
   $("download").onclick = generatePdf;
+
+  /* ==== Send to Billing: hand the refined IO fields to the Billing Tracker ====
+     Same-origin handoff — push a seed onto a localStorage inbox that the
+     Billing Tracker drains (via its 'storage' listener) and turns into a row. */
+  $("send_billing").onclick = () => {
+    const v = collectIoValues();
+    const s = $("status");
+    if(!v.advertiser && !v.campaign){
+      if(s){ s.style.display='block'; s.className='status warn'; s.textContent='Nothing to send — fill in the advertiser/campaign first.'; }
+      return;
+    }
+    const seed = {
+      entity:     v.agency,
+      advertiser: v.advertiser,
+      campaign:   v.campaign,
+      io_amount:  v.budget,
+      start:      v.startDate,
+      end:        v.endDate,
+      year:       v.startDate ? Number(String(v.startDate).slice(0,4)) : null,
+      _sentAt:    Date.now()
+    };
+    let inbox;
+    try { inbox = JSON.parse(localStorage.getItem('ax_billing_inbox') || '[]'); } catch(e){ inbox = []; }
+    if(!Array.isArray(inbox)) inbox = [];
+    inbox.push(seed);
+    localStorage.setItem('ax_billing_inbox', JSON.stringify(inbox));
+    if(s){
+      s.style.display='block'; s.className='status ok';
+      s.textContent = `Sent “${[v.agency, v.advertiser, v.campaign].filter(Boolean).join(' | ')}” to the Billing Tracker.`;
+    }
+  };
 
   /* ==== Monday integration wiring ==== */
   function refreshMondayHint(){
