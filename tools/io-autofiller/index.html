@@ -1,0 +1,1809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AxMedia IO Autofiller</title>
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  /* ===== Theme lives in ../../theme.css (shared across AXM Toolkit) =====
+     The IO render itself (captured for PDF) stays white/clean — see IO_RENDER_CSS in JS. */
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  ::selection{background:var(--accent-tint);color:var(--ink)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#3D3D3A;border-radius:999px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#4D4D49}
+
+  header{padding:18px 28px;border-bottom:1px solid var(--line-soft);background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:16px}
+  header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em;color:var(--ink)}
+  header .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  header code{background:var(--panel);padding:2px 6px;border-radius:5px;font-size:11.5px;color:var(--muted)}
+
+  .wrap{display:grid;grid-template-columns:minmax(380px,1fr) minmax(380px,1fr);gap:20px;padding:20px;max-width:1440px;margin:0 auto}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:20px 22px}
+  .panel h2{margin:0 0 14px;font-size:11.5px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.09em}
+
+  .row{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:8px 0;align-items:center}
+  .row.full{grid-template-columns:1fr}
+  .row label{font-size:12.5px;color:var(--muted);font-weight:500}
+
+  input[type=text],input[type=date],input[type=number],textarea,select{
+    width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
+    background:var(--panel-2);font:inherit;color:var(--ink);
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  input::placeholder,textarea::placeholder{color:var(--faint)}
+  textarea{resize:vertical;min-height:80px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55}
+  textarea.paste{min-height:220px}
+  input:hover,textarea:hover,select:hover{border-color:#4D4D49}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring);background:var(--panel-2)}
+  select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4.5L6 8.5L10 4.5' stroke='%23A7A5A0' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+
+  button{background:var(--accent);color:var(--accent-ink);border:0;padding:9px 16px;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;transition:background .15s ease, transform .05s ease, box-shadow .15s ease;font-family:inherit}
+  button:hover{background:var(--accent-hover)}
+  button:active{transform:translateY(1px)}
+  button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus-ring)}
+  button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button.sec:hover{background:var(--panel-2);border-color:#4D4D49}
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:28px 20px;text-align:center;background:rgba(255,255,255,0.015);transition:all .18s ease;cursor:pointer;position:relative}
+  .dropzone:hover{border-color:#4D4D49;background:rgba(255,255,255,0.03)}
+  .dropzone.over{border-color:var(--accent);background:var(--accent-tint)}
+  .dropzone.loaded{border-style:solid;border-color:var(--ok);background:var(--ok-tint)}
+  .dropzone.loaded .big{color:#9FD0B4}
+  .dropzone.loaded .small{color:#B8D0C2}
+  .dropzone.working{border-color:var(--warn);background:var(--warn-tint)}
+  .dropzone .big{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px}
+  .dropzone .small{font-size:12.5px;color:var(--muted)}
+  .dropzone .link{color:var(--accent);text-decoration:none;font-weight:500}
+  .dropzone .link:hover{text-decoration:underline}
+  .dropzone .check{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--ok);color:#fff;font-weight:700;line-height:20px;margin-right:6px;vertical-align:-3px;font-size:12px}
+  .dropzone .reset{position:absolute;top:8px;right:10px;font-size:11px;color:var(--faint);background:transparent;border:0;padding:4px 8px;cursor:pointer;border-radius:6px}
+  .dropzone .reset:hover{background:var(--panel-2);color:var(--ink)}
+
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(201,100,66,0.18);border-top-color:var(--accent);border-radius:50%;margin-right:8px;vertical-align:-2px;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ===== PDF render overlay shield =====
+     Dark scrim with a glass card — covers the page while html2canvas captures. */
+  .io-render-shield{position:fixed;inset:0;background:rgba(20,20,18,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif}
+  .io-render-shield .card{padding:20px 28px;background:var(--panel);border-radius:12px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,0.5);display:inline-flex;align-items:center}
+
+  .channels{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hint{font-size:12px;color:var(--faint);margin-top:3px;line-height:1.5}
+
+  .status{font-size:12.5px;padding:10px 12px;border-radius:8px;margin-top:12px;border:1px solid transparent}
+  .status.ok{background:var(--ok-tint);color:#A7D4BC;border-color:rgba(110,159,131,0.3)}
+  .status.warn{background:var(--warn-tint);color:#E0B687;border-color:rgba(201,150,97,0.3)}
+  .status.err{background:var(--err-tint);color:#E0928B;border-color:rgba(201,112,100,0.3)}
+
+  table.preview{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.preview th{text-align:left;background:var(--panel-2);padding:8px 10px;border:1px solid var(--line);font-weight:600;color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.07em}
+  table.preview td{padding:7px 10px;border:1px solid var(--line);vertical-align:top;color:var(--ink)}
+  table.preview tfoot th{background:var(--panel-2);color:var(--ink)}
+
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13px;margin-top:8px}
+  .kv .k{color:var(--muted)}
+  .kv .v{font-weight:500;word-break:break-word;white-space:pre-wrap;color:var(--ink)}
+
+  .divider{height:1px;background:var(--line-soft);margin:18px 0}
+  .small{font-size:12px;color:var(--muted);line-height:1.5}
+  .small code{background:var(--panel-2);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--muted)}
+
+  details summary{cursor:pointer;color:var(--muted);font-size:12.5px;padding:4px 0;list-style:none;user-select:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:"›";display:inline-block;margin-right:6px;transition:transform .15s ease;color:var(--faint)}
+  details[open] summary::before{transform:rotate(90deg)}
+  details summary:hover{color:var(--ink)}
+
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--panel-2);font-size:11.5px;color:var(--muted);margin-right:4px;border:1px solid var(--line)}
+  .num{font-variant-numeric:tabular-nums}
+
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ===== Monday fetch row (item ID input + fetch + settings gear) ===== */
+  .monday-row{display:flex;gap:8px;align-items:stretch;margin-bottom:4px}
+  .monday-row input{flex:1;min-width:0}
+  .monday-row button.icon{padding:0;width:38px;display:flex;align-items:center;justify-content:center;background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .monday-row button.icon:hover{color:var(--ink);background:var(--panel-2);border-color:#4D4D49}
+  .monday-row button.icon svg{width:16px;height:16px}
+  .monday-hint{font-size:12px;color:var(--faint);margin-top:4px;display:flex;align-items:center;gap:6px}
+  .monday-hint.ok{color:#A7D4BC}
+  .or-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.1em}
+  .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+
+  /* ===== Modal for Monday token config ===== */
+  .modal-scrim{position:fixed;inset:0;background:rgba(20,20,18,0.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .12s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .modal h3{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--ink)}
+  .modal .mdesc{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px}
+  .modal .mdesc a{color:var(--accent)}
+  .modal label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:500}
+  .modal input{width:100%}
+  .modal .token-saved{font-size:12.5px;color:#A7D4BC;padding:8px 10px;background:var(--ok-tint);border:1px solid rgba(110,159,131,0.3);border-radius:8px;margin-bottom:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+  .modal-actions .left{margin-right:auto}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>AxMedia IO Autofiller</h1>
+    <div class="sub">Drop a Monday submission PDF &rarr; review the mapping &rarr; download a populated IO.</div>
+  </div>
+  <div class="small">Outputs landscape letter PDF</div>
+</header>
+
+<div class="wrap">
+
+<div class="panel">
+  <h2>1. Load submission</h2>
+
+  <div class="monday-row">
+    <input id="monday_item" type="text" placeholder="Monday item ID (e.g. 11798352671)" inputmode="numeric" autocomplete="off">
+    <button id="monday_fetch">Fetch from Monday</button>
+    <button id="monday_settings" class="icon" type="button" title="Configure Monday connection" aria-label="Monday settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+  <div id="monday_hint" class="monday-hint">Paste an item ID from the <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:11.5px">🟨Ax Submissions</code> board, then press Fetch.</div>
+
+  <div class="or-divider">or</div>
+
+  <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload submission PDF">
+    <button id="dzreset" class="reset" type="button" style="display:none">&times; reset</button>
+    <div id="dzbig" class="big">Drop the submission PDF here</div>
+    <div id="dzsmall" class="small">or <span class="link">choose a file</span> &nbsp;&middot;&nbsp; .pdf from Monday WorkForms</div>
+    <input type="file" id="fileinput" accept="application/pdf,.pdf" hidden>
+  </div>
+  <div class="actions">
+    <button id="loadexample" class="sec">Load example submission</button>
+    <button id="clearbtn" class="sec">Clear all</button>
+  </div>
+  <details style="margin-top:10px"><summary>Or paste text instead (fallback)</summary>
+    <textarea id="paste" class="paste" placeholder="Paste text from a submission form. Parser looks for labels like 'Advertiser Name', 'Gross Budget', 'Flight Date', etc."></textarea>
+    <div class="actions"><button id="parse" class="sec">Parse pasted text</button></div>
+  </details>
+
+  <div class="divider"></div>
+
+  <h2>2. Review &amp; edit</h2>
+
+  <div class="row"><label>Advertiser</label><input id="f_advertiser" type="text"></div>
+  <div class="row"><label>Agency</label><input id="f_agency" type="text" value="AxMedia"></div>
+  <div class="row"><label>Campaign</label><input id="f_campaign" type="text"></div>
+  <div class="row"><label>Title date</label><input id="f_titledate" type="date"><span class="hint" style="grid-column:2">Drives the "MMMYYYY" tag in the IO name.</span></div>
+  <div class="row"><label>Flight start</label><input id="f_start" type="date"></div>
+  <div class="row"><label>Flight end</label><input id="f_end" type="date"></div>
+  <div class="row"><label>Flight notes</label><textarea id="f_flightnotes"></textarea></div>
+
+  <div class="row"><label>Gross budget ($)</label><input id="f_budget" type="number" step="0.01" placeholder="7490"></div>
+  <div class="row"><label>Blended CPM ($)</label><input id="f_cpm" type="number" step="0.01" placeholder="15"><span class="hint" style="grid-column:2"><span style="color:var(--accent);font-weight:600">Ax standard bCPM is $49</span><br>Single blended CPM across all channels. Click <b>Suggest CPM</b> to compute from the selected channel mix.</span></div>
+  <div class="actions" style="margin-top:4px"><button id="suggestcpm" class="sec">Suggest CPM</button></div>
+
+  <div class="row full"><label>Channels (up to 7)</label></div>
+  <div class="channels" id="channels">
+    <select data-ch="1"></select>
+    <select data-ch="2"></select>
+    <select data-ch="3"></select>
+    <select data-ch="4"></select>
+    <select data-ch="5"></select>
+    <select data-ch="6"></select>
+    <select data-ch="7"></select>
+  </div>
+  <div class="hint">Default-mapped from form media channels. Override any row as needed.</div>
+
+  <div class="divider"></div>
+
+  <div class="row"><label>Landing page</label><input id="f_landing" type="text"></div>
+  <div class="row"><label>Geo</label><input id="f_geo" type="text"></div>
+  <div class="row"><label>Audience / Tactics</label><input id="f_tactics" type="text" placeholder="e.g. Primary Voters, Prospecting"></div>
+  <div class="row"><label>Environment</label><input id="f_environment" type="text" value="Desktop, Mobile, Tablet, In-App, TV Screens"></div>
+  <div class="row"><label>Primary goal</label><input id="f_goal" type="text" value="Awareness"></div>
+  <div class="row"><label>KPI measurement</label><input id="f_kpi" type="text" value="Impressions, Reach"></div>
+  <div class="row"><label>Secondary</label><input id="f_secondary" type="text" value="CTR, Clicks"></div>
+  <div class="row"><label>Media notes</label><textarea id="f_medianotes"></textarea></div>
+
+  <details style="margin-top:10px"><summary>Advanced: contacts (defaults are Brad Mont)</summary>
+    <div class="row"><label>Primary contact</label><input id="f_primary" type="text" value="Brad Mont"></div>
+    <div class="row"><label>Email</label><input id="f_email" type="text" value="bmont@axmediateam.com"></div>
+    <div class="row"><label>Billing</label><input id="f_billing" type="text" value="Brad Mont"></div>
+    <div class="row"><label>Name/Attn</label><input id="f_attn" type="text" value="bmont@axmediateam.com"></div>
+  </details>
+
+  <details style="margin-top:10px"><summary>Pipedrive defaults (used when creating a deal)</summary>
+    <div class="row"><label>Pipedrive Org ID</label><input id="pd_org_id" type="number" value="81"><span class="hint" style="grid-column:2">Default: AxMedia (81). Override per deal if needed.</span></div>
+    <div class="row"><label>Person ID</label><input id="pd_person_id" type="number" value="178"><span class="hint" style="grid-column:2">Default: Brad Mont @ AxMedia (178).</span></div>
+    <div class="row"><label>Source origin</label>
+      <div class="hint" style="grid-column:2">
+        Pipedrive system-controls this field &mdash; deals created via API automatically receive
+        <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:11.5px">API</code>
+        as their source. It can't be overridden via API.
+      </div>
+    </div>
+    <div class="row"><label>Anything New?</label>
+      <select id="pd_anything_new"><option value="yes" selected>Yes</option><option value="no">No</option></select>
+    </div>
+    <div class="row"><label>Email Proposal?</label>
+      <select id="pd_email_proposal"><option value="yes">Yes</option><option value="no" selected>No</option></select>
+    </div>
+    <div class="row"><label>Primary KPI</label>
+      <select id="pd_primary_kpi" multiple size="4" style="height:auto;min-height:80px">
+        <option value="Client / Customer Acquisition">Client / Customer Acquisition</option>
+        <option value="Qualified Leads">Qualified Leads</option>
+        <option value="Cost-per-Lead">Cost-per-Lead</option>
+        <option value="Cost-per-Action">Cost-per-Action</option>
+        <option value="Click-Through-Rate">Click-Through-Rate</option>
+        <option value="Video Completion Rate">Video Completion Rate</option>
+        <option value="Page Visits">Page Visits</option>
+        <option value="Page Actions">Page Actions</option>
+        <option value="ROAS">ROAS</option>
+        <option value="Reach">Reach</option>
+        <option value="Sales / Conversions">Sales / Conversions</option>
+      </select>
+      <span class="hint" style="grid-column:2">Cmd/Ctrl-click for multi-select. Sent as Pipedrive Primary KPI.</span>
+    </div>
+    <div class="row"><label>Tactics</label>
+      <select id="pd_tactics" multiple size="3" style="height:auto;min-height:60px">
+        <option value="CRM List">CRM List</option>
+        <option value="Prospecting">Prospecting</option>
+        <option value="Retargeting">Retargeting</option>
+      </select>
+      <span class="hint" style="grid-column:2">Sent as Pipedrive Tactics. (IO Tactics text field is freeform and stays in the IO PDF only.)</span>
+    </div>
+  </details>
+
+  <div class="actions" style="margin-top:16px">
+    <button id="download">Generate &amp; download IO.pdf</button>
+    <button id="create_deal">Create Pipedrive deal</button>
+    <button id="copyjson" class="sec">Copy mapping as JSON</button>
+    <button id="pipedrive_settings" class="sec" type="button" title="Configure Pipedrive connection">⚙ Pipedrive</button>
+  </div>
+  <div id="status" class="status" style="display:none"></div>
+</div>
+
+<div class="panel">
+  <h2>Preview &mdash; what will land in the IO</h2>
+  <div class="kv">
+    <div class="k">IO name</div><div class="v" id="p_ioname">&mdash;</div>
+    <div class="k">Advertiser</div><div class="v" id="p_advertiser">&mdash;</div>
+    <div class="k">Agency</div><div class="v" id="p_agency">&mdash;</div>
+    <div class="k">Campaign</div><div class="v" id="p_campaign">&mdash;</div>
+    <div class="k">Flight</div><div class="v" id="p_flight">&mdash;</div>
+    <div class="k">Geo</div><div class="v" id="p_geo">&mdash;</div>
+    <div class="k">Landing page</div><div class="v" id="p_landing">&mdash;</div>
+  </div>
+  <div class="divider"></div>
+  <table class="preview">
+    <thead><tr><th>Channel</th><th>Blended CPM</th><th>Min Imps</th><th>Budget</th></tr></thead>
+    <tbody id="p_channels"></tbody>
+    <tfoot><tr><th>Totals</th><th id="p_cpm_f" class="num">&mdash;</th><th id="p_imp_f" class="num">&mdash;</th><th id="p_bud_f" class="num">&mdash;</th></tr></tfoot>
+  </table>
+  <div class="kv" style="margin-top:14px">
+    <div class="k">Tactics</div><div class="v" id="p_tactics">&mdash;</div>
+    <div class="k">Environment</div><div class="v" id="p_env">&mdash;</div>
+    <div class="k">Primary goal</div><div class="v" id="p_goal">&mdash;</div>
+    <div class="k">KPI measurement</div><div class="v" id="p_kpi">&mdash;</div>
+    <div class="k">Secondary</div><div class="v" id="p_sec">&mdash;</div>
+    <div class="k">Flight notes</div><div class="v" id="p_fnotes">&mdash;</div>
+    <div class="k">Media notes</div><div class="v" id="p_mnotes">&mdash;</div>
+  </div>
+
+</div>
+
+</div>
+
+<!-- IO render is created on-demand in generatePdf() and removed after capture — no static element. -->
+
+<!-- Monday connection settings modal (shown when the gear icon is clicked) -->
+<div id="monday_modal" class="modal-scrim" style="display:none" role="dialog" aria-modal="true" aria-labelledby="mm_title">
+  <div class="modal">
+    <h3 id="mm_title">Monday.com connection</h3>
+    <div class="mdesc">
+      Paste your personal Monday API token. Stored only in this browser (localStorage) and sent only to <code>api.monday.com</code>.
+      Generate one in Monday: avatar &rarr; Developers &rarr; My access tokens.
+    </div>
+    <div id="mm_saved_block" style="display:none"><div id="mm_saved" class="token-saved"></div></div>
+    <label for="mm_token">API token</label>
+    <input id="mm_token" type="password" placeholder="Paste token (eyJ... or similar)" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button id="mm_clear" class="sec left" type="button">Clear saved</button>
+      <button id="mm_cancel" class="sec" type="button">Cancel</button>
+      <button id="mm_save" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pipedrive connection settings modal -->
+<div id="pipedrive_modal" class="modal-scrim" style="display:none" role="dialog" aria-modal="true" aria-labelledby="pm_title">
+  <div class="modal">
+    <h3 id="pm_title">Pipedrive connection</h3>
+    <div class="mdesc">
+      Paste your personal Pipedrive API token and your company subdomain. Both stored only in this browser
+      (localStorage) and sent only to <code>api.pipedrive.com</code>. Generate a token in Pipedrive: avatar
+      &rarr; Personal preferences &rarr; API.
+    </div>
+    <div id="pm_saved_block" style="display:none"><div id="pm_saved" class="token-saved"></div></div>
+    <label for="pm_company">Company subdomain</label>
+    <input id="pm_company" type="text" placeholder="e.g. grapeseedmedia (the part before .pipedrive.com)" autocomplete="off" spellcheck="false">
+    <div style="height:10px"></div>
+    <label for="pm_token">API token</label>
+    <input id="pm_token" type="password" placeholder="Paste token" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button id="pm_clear" class="sec left" type="button">Clear saved</button>
+      <button id="pm_cancel" class="sec" type="button">Cancel</button>
+      <button id="pm_save" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF.js for reading PDFs; html2canvas + jsPDF (loaded separately so their globals are reliably exposed) for generating the IO PDF; Tesseract.js lazy-loaded for OCR fallback -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ==== Channel catalog: label -> {row, rate} on the auto_IO CPM Calc grid (rows 56-65) ==== */
+const CHANNELS = [
+  {label:"Display Banners",      row:56, rate:9.75},
+  {label:"In-Banner Video",      row:57, rate:9.75},
+  {label:"Native Display",       row:58, rate:16.00},
+  {label:"Native Video",         row:59, rate:18.00},
+  {label:"In-Stream Video",      row:60, rate:25.00},
+  {label:"YouTube",              row:61, rate:49.00},
+  {label:"Streaming Audio",      row:62, rate:45.00},
+  {label:"Connected TV / OTT",   row:63, rate:60.00},
+  {label:"pDOOH",                row:64, rate:35.00},
+  {label:"Paid Social",          row:65, rate:22.00},
+  {label:"Paid Search",          row:66, rate:null},
+  {label:"(none)",               row:null,rate:null}
+];
+
+/* ==== Profiles ====
+   Each client/agency gets a profile. Today only AxMedia is filled in, but functions read from
+   PROFILES[ACTIVE_PROFILE] instead of hardcoding Ax-specific values, so adding new clients later
+   is just dropping a new object into PROFILES (no other code changes). */
+const PROFILES = {
+  axmedia: {
+    label: "AxMedia",
+    monday: {
+      boardId: "8887555175",
+      cols: {
+        agency:        "text_mkq83dbn",       // "Agency Assignment"
+        campaign:      "text_mks7y1v8",       // "Campaign Name or Project Name"
+        budget:        "numeric_mkq88463",    // "Budget"
+        flightDates:   "timerange_mkq87hhy",  // "Flight Dates" (timeline)
+        geo:           "long_text_mkq8d77m",  // "Geography"
+        channels:      "dropdown_mkq84xj6",   // "Channels"
+        landingPage:   "link_mkq8qmtp",       // "Landing Page"
+        audience:      "long_textu6nsuddk",   // "Audience Description"
+        notes:         "long_text_mkq8gm4p",  // "General Notes"
+        submittedBy:   "text_mkq03p1y",       // "Submitted By"
+        proposalNeeds: "color_mkqjypqc",      // "Proposal Needs" status
+      }
+    },
+    pipedrive: {
+      orgId: 81,                              // AxMedia organization
+      personId: 178,                          // Brad Mont @ AxMedia
+      agencyDefault: "AxMedia",
+      // Custom field hashes (workspace-wide, not technically per-profile, but kept here so
+      // a future profile in a different Pipedrive workspace would override them).
+      fields: {
+        advertiser:     "ffc248e842b13345534a3c8ee9f218815bd3594d", // org type
+        campaignName:   "b489edb0aa236a7fa9472e68c117756938233d70", // varchar
+        flightStart:    "68bc9b7ad2f0da73151c189bee945ff863367a37", // date
+        flightEnd:      "5f5ee5f0a9c449adf6136eb372ba7ef86367efb7", // date
+        usBlendedCpm:   "a462fe8420be0c4cf37df3075e8f68d0ac25754b", // monetary
+        jointCpm:       "59b62d4bbb7e993f0b20bbc5f92e0df4267f020e", // double (mirrors CPM, used for Units calc)
+        units:          "810b09f47efc7b9e186cbfcb357d8258729ffc6f", // double
+        channels:       "f9828f1de3d7abeba467a51225b465ab194bb22e", // set
+        tactics:        "b1da0c81e51aa5806088786bd91bbe7423dba164", // set
+        geo:            "06d6705fd055fda3826812309c89b29aa191a5c9", // varchar
+        landingPage:    "faecfa0833a5842bba237db638f190222be06942", // varchar
+        primaryKpi:     "e154f8c539691d3be9d3d9fc6453bb06ee731ed2", // set
+        measurement:    "02c7b3d26a0d0d7c615a64d25d56af190a3a0511", // set
+        environment:    "72f3a1875a12e0506dc627a4d98f4dccb070df6d", // set
+        mediaNotes:     "fbbbd5ed2417ffd6e6065787b1563481f06ecca8", // varchar
+        anythingNew:    "c4558af7b4e27be853bfb76545d32023048a5e26", // enum
+        emailProposal:  "ccfdf82ce3d879cc4e93982d56aa3faace6dc5cd", // enum
+      },
+      // Option-ID lookup for set/enum fields. Built from /v1/dealFields output.
+      options: {
+        anythingNew:   { yes: 33, no: 34 },
+        emailProposal: { yes: 222, no: 223 },
+        // Channels: maps the IO autofiller's channel labels -> Pipedrive Channels option IDs
+        channels: {
+          "Display Banners":      163, // Display
+          "In-Banner Video":      231, // In-Banner Video / In-Stream Video
+          "Native Display":       154,
+          "Native Video":         155,
+          "In-Stream Video":      231,
+          "YouTube":              169,
+          "Streaming Audio":      162, // Digital Audio
+          "Connected TV / OTT":   230, // Connected TV / Portable TV
+          "pDOOH":                228,
+          "Paid Social":          157,
+          "Paid Search":          156,
+        },
+        tactics: { "CRM List": 170, "Prospecting": 172, "Retargeting": 173 },
+        primaryKpi: {
+          "Client / Customer Acquisition": 108, "Qualified Leads": 109, "Cost-per-Lead": 110,
+          "Cost-per-Action": 111, "Click-Through-Rate": 112, "Video Completion Rate": 113,
+          "Page Visits": 114, "Page Actions": 115, "ROAS": 116, "Reach": 117,
+          "Sales / Conversions": 118
+        },
+        measurement: {
+          "Completion Rate": 174, "Conversions": 175, "Conversions: App Installs": 176,
+          "Conversions: Buy Ticket Button Clicks": 177, "Conversions: Form Fills": 178,
+          "Conversions: Sales": 179, "Conversions: Ticket Sales": 180, "CPA": 181, "CPM": 182,
+          "CPWI": 183, "CTR": 184, "Impressions": 185, "Instagram Followers": 186,
+          "Landing Page Visits": 187, "Page Visits": 188, "Reach": 189, "ROAS": 190,
+          "Sign Ups": 191, "Social Media Followers": 192, "Subscriptions": 193,
+          "VCR": 194, "Viewability": 195, "Walk-Ins": 196
+        },
+        environment: {
+          "Desktop": 197, "In-App": 198, "Mobile": 199, "Out of Home": 200,
+          "Print": 201, "Tablet": 202, "TV Screens": 203
+        }
+      },
+      // Default values shown on the editable Pipedrive Defaults card. User can override per-deal.
+      defaults: {
+        origin: "ManuallyCreated",            // Pipedrive standard "Source origin"
+        anythingNew: "yes",                   // option key from .options.anythingNew
+        emailProposal: "no",
+        primaryKpi: [],                       // user picks from dropdown each time
+        tactics: [],                          // user picks from dropdown each time
+      }
+    },
+    ioContacts: {
+      primary: "Brad Mont",
+      email:   "bmont@axmediateam.com",
+      billing: "Brad Mont",
+      attn:    "bmont@axmediateam.com",
+    },
+    ioAddress: ["800 West 47th Street", "Suite 200", "Kansas City, MO 64112"],
+  },
+  // Future profile slots:
+  // grapeseed_direct: { ... },
+  // axadvocacy: { ... },
+};
+let ACTIVE_PROFILE = (function(){
+  try { return localStorage.getItem('axm_io_profile') || 'axmedia'; } catch(e) { return 'axmedia'; }
+})();
+function profile(){ return PROFILES[ACTIVE_PROFILE] || PROFILES.axmedia; }
+
+/* ==== Monday.com integration ====
+   Column IDs and board ID come from the active profile. The tool POSTs directly to api.monday.com
+   with the user's personal API token (stored in localStorage). Nothing leaves the user's machine
+   besides the request to Monday's API. */
+const MONDAY_BOARD_ID = profile().monday.boardId;          // legacy alias, retained for clarity
+const MONDAY_COLS = profile().monday.cols;                 // legacy alias
+const TOKEN_KEY = "axm_io_monday_token";
+const PIPEDRIVE_TOKEN_KEY = "axm_io_pipedrive_token";
+const PIPEDRIVE_COMPANY_KEY = "axm_io_pipedrive_company";  // user's company subdomain (e.g., "grapeseedmedia")
+
+function getMondayToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+function setMondayToken(t){ try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch(e){} }
+function tokenTail(t){ return t && t.length > 4 ? '\u2022\u2022\u2022\u2022' + t.slice(-4) : ''; }
+
+async function fetchMondayItem(itemId){
+  const token = getMondayToken();
+  if(!token) throw new Error("No Monday API token saved. Click the gear icon to configure.");
+  if(!/^\d+$/.test(String(itemId).trim())) throw new Error("Item ID must be numeric.");
+
+  const query = `query ($ids: [ID!]) {
+    items(ids: $ids) {
+      id name
+      column_values { id text value }
+    }
+  }`;
+  const res = await fetch('https://api.monday.com/v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': token, 'API-Version': '2024-01' },
+    body: JSON.stringify({ query, variables: { ids: [String(itemId).trim()] } })
+  });
+  if(!res.ok){
+    const body = await res.text().catch(()=>'');
+    throw new Error(`Monday API HTTP ${res.status}: ${body.slice(0,120)}`);
+  }
+  const data = await res.json();
+  if(data.errors && data.errors.length){
+    throw new Error("Monday API error: " + data.errors.map(e => e.message).join('; '));
+  }
+  const item = data.data && data.data.items && data.data.items[0];
+  if(!item) throw new Error(`Item ${itemId} not found (check the ID and that your token has access to the Ax Submissions board).`);
+  return item;
+}
+
+/* Map a Monday item to the autofiller's form fields. */
+function applyMondayItem(item){
+  // Flatten column_values into an { id -> text } map
+  const cv = {};
+  for(const c of item.column_values) cv[c.id] = c.text;
+
+  // Advertiser = item name
+  $("f_advertiser").value = item.name || "";
+  $("f_agency").value      = cv[MONDAY_COLS.agency]     || "AxMedia";
+  $("f_campaign").value    = cv[MONDAY_COLS.campaign]   || "";
+  $("f_budget").value      = (cv[MONDAY_COLS.budget] || "").replace(/[^0-9.]/g, "");
+  $("f_landing").value     = cv[MONDAY_COLS.landingPage] || "";
+  $("f_geo").value         = cv[MONDAY_COLS.geo]        || "";
+  $("f_tactics").value     = cv[MONDAY_COLS.audience]   || "";
+  $("f_medianotes").value  = cv[MONDAY_COLS.notes]      || "";
+
+  // Flight dates come as "2026-04-20 - 2026-05-03" (ISO range)
+  const fd = cv[MONDAY_COLS.flightDates] || "";
+  const m = fd.match(/^(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})$/);
+  if(m){
+    $("f_start").value = m[1];
+    $("f_end").value = m[2];
+    if(!$("f_titledate").value) $("f_titledate").value = m[1];
+  } else if(/^\d{4}-\d{2}-\d{2}$/.test(fd)){
+    $("f_start").value = fd;
+    if(!$("f_titledate").value) $("f_titledate").value = fd;
+  }
+
+  // Channels come as comma-separated labels like "Native, Display, Facebook / Instagram"
+  const chansText = cv[MONDAY_COLS.channels] || "";
+  if(chansText){
+    // Reuse the substring channel scanner from the PDF path
+    const text = ' ' + chansText.toLowerCase().replace(/\s+/g, ' ') + ' ';
+    const keys = Object.keys(FORM_CHANNEL_MAP).sort((a, b) => b.length - a.length);
+    const mapped = [];
+    const consumed = [];
+    for(const k of keys){
+      let from = 0;
+      while(true){
+        const i = text.indexOf(k, from);
+        if(i < 0) break;
+        const before = text[i - 1] || ' ';
+        const after = text[i + k.length] || ' ';
+        const isBoundary = c => !/[a-z0-9]/.test(c);
+        if(isBoundary(before) && isBoundary(after) && !consumed.some(([s,e]) => i < e && i + k.length > s)){
+          const tgt = FORM_CHANNEL_MAP[k];
+          if(tgt && !mapped.includes(tgt)) mapped.push(tgt);
+          consumed.push([i, i + k.length]);
+        }
+        from = i + k.length;
+      }
+    }
+    if(mapped.length) setChannelList(mapped);
+  }
+
+  autoSuggestCpmIfEmpty();
+  renderPreview();
+  return Object.keys(cv).length;  // rough "fields populated" count
+}
+
+/* ==== Pipedrive integration =================================================
+   Direct browser → api.pipedrive.com calls. Token + company subdomain stored in localStorage.
+   Per-deal field mapping comes from the active profile. */
+
+function getPipedriveToken(){ try { return localStorage.getItem(PIPEDRIVE_TOKEN_KEY) || ""; } catch(e){ return ""; } }
+function setPipedriveToken(t){ try { t ? localStorage.setItem(PIPEDRIVE_TOKEN_KEY, t) : localStorage.removeItem(PIPEDRIVE_TOKEN_KEY); } catch(e){} }
+function getPipedriveCompany(){ try { return localStorage.getItem(PIPEDRIVE_COMPANY_KEY) || ""; } catch(e){ return ""; } }
+function setPipedriveCompany(c){ try { c ? localStorage.setItem(PIPEDRIVE_COMPANY_KEY, c) : localStorage.removeItem(PIPEDRIVE_COMPANY_KEY); } catch(e){} }
+
+/* Low-level helper: build the API URL with the token query param. */
+function pdUrl(path, extraQuery){
+  const company = getPipedriveCompany();
+  const token = getPipedriveToken();
+  const sep = path.includes('?') ? '&' : '?';
+  let url = `https://${company}.pipedrive.com/api/v1${path}${sep}api_token=${encodeURIComponent(token)}`;
+  if(extraQuery) url += '&' + extraQuery;
+  return url;
+}
+
+async function pdRequest(method, path, body){
+  if(!getPipedriveToken()) throw new Error("No Pipedrive API token saved.");
+  if(!getPipedriveCompany()) throw new Error("No Pipedrive company subdomain saved.");
+  const opts = { method, headers: { 'Accept': 'application/json' } };
+  if(body){
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(pdUrl(path), opts);
+  let json;
+  try { json = await res.json(); } catch(e) { throw new Error(`Pipedrive returned non-JSON HTTP ${res.status}`); }
+  if(!res.ok || json.success === false){
+    const msg = json && (json.error || json.message) || `HTTP ${res.status}`;
+    throw new Error(`Pipedrive API: ${msg}`);
+  }
+  return json.data;
+}
+
+/* Search-or-create helper for the Advertiser org (named "{Agency} - {Advertiser}"). */
+async function findOrCreateAdvertiserOrg(orgName){
+  // 1. Search by exact name
+  const search = await pdRequest('GET', `/organizations/search?term=${encodeURIComponent(orgName)}&exact_match=true`);
+  const items = search && search.items;
+  if(items && items.length){
+    return { id: items[0].item.id, action: 'linked' };
+  }
+  // 2. Not found — create
+  const created = await pdRequest('POST', '/organizations', { name: orgName });
+  return { id: created.id, action: 'created' };
+}
+
+/* Map a list of IO labels to a comma-separated string of Pipedrive option IDs.
+   `optionMap` is { "Label": id, ... }. Unknown labels are silently dropped. */
+function mapToOptionIds(labels, optionMap){
+  if(!labels || !labels.length) return "";
+  const ids = [];
+  for(const l of labels){
+    const id = optionMap[l];
+    if(id != null && !ids.includes(id)) ids.push(id);
+  }
+  return ids.join(",");
+}
+
+/* Tokenize a freeform CSV string ("Impressions, Reach") and resolve each token to an option ID.
+   Tokens that don't exactly match a key in the option map are dropped (and reported via the
+   returned `dropped` array for status messaging). */
+function mapCsvToOptionIds(csvText, optionMap){
+  if(!csvText) return { ids: "", matched: [], dropped: [] };
+  const tokens = csvText.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+  const matched = [], dropped = [], ids = [];
+  for(const t of tokens){
+    // try exact match first, then case-insensitive
+    let id = optionMap[t];
+    if(id == null){
+      const ciKey = Object.keys(optionMap).find(k => k.toLowerCase() === t.toLowerCase());
+      if(ciKey) id = optionMap[ciKey];
+    }
+    if(id != null){
+      if(!ids.includes(id)) ids.push(id);
+      matched.push(t);
+    } else {
+      dropped.push(t);
+    }
+  }
+  return { ids: ids.join(","), matched, dropped };
+}
+
+/* Build the Pipedrive deal payload from a collectIoValues() snapshot + the editable defaults. */
+function buildDealPayload(values, defaults, advertiserOrgId){
+  const p = profile().pipedrive;
+  const f = p.fields;
+
+  // Combine KPI Measurement + Secondary Measurement into the single Pipedrive Measurement set
+  const combinedMeasurement = [values.kpi, values.secondary].filter(Boolean).join(', ');
+  const measurementResult = mapCsvToOptionIds(combinedMeasurement, p.options.measurement);
+
+  // Environment freeform → set
+  const environmentResult = mapCsvToOptionIds(values.environment, p.options.environment);
+
+  // Channels: already a list of canonical labels from the form
+  const channelsIds = mapToOptionIds(values.channels, p.options.channels);
+
+  // Tactics & Primary KPI: come from defaults (user-selected dropdowns), already arrays of labels
+  const tacticsIds = mapToOptionIds(defaults.tactics || [], p.options.tactics);
+  const primaryKpiIds = mapToOptionIds(defaults.primaryKpi || [], p.options.primaryKpi);
+
+  const payload = {
+    title: values.ioTitle,
+    value: values.budget,
+    currency: 'USD',
+    org_id: defaults.orgId || p.orgId,
+    person_id: defaults.personId || p.personId,
+    // NOTE: `origin` is system-generated by Pipedrive (deals created via API are auto-tagged "API").
+    // It's not settable through the API at all, so we don't include it in the payload.
+    [f.advertiser]:    advertiserOrgId || null,
+    [f.campaignName]:  values.campaign,
+    [f.flightStart]:   values.startDate,
+    [f.flightEnd]:     values.endDate,
+    [f.usBlendedCpm]:  values.cpm,
+    [f.jointCpm]:      values.cpm,
+    [f.units]:         values.minImps != null ? Math.round(values.minImps) : null,
+    [f.channels]:      channelsIds,
+    [f.tactics]:       tacticsIds,
+    [f.geo]:           values.geo,
+    [f.landingPage]:   values.landing,
+    [f.primaryKpi]:    primaryKpiIds,
+    [f.measurement]:   measurementResult.ids,
+    [f.environment]:   environmentResult.ids,
+    [f.mediaNotes]:    values.mediaNotes,
+    [f.anythingNew]:   p.options.anythingNew[defaults.anythingNew] || p.options.anythingNew.yes,
+    [f.emailProposal]: p.options.emailProposal[defaults.emailProposal] || p.options.emailProposal.no,
+  };
+
+  // Strip nulls/empty strings — Pipedrive treats absent fields as "leave blank" cleanly,
+  // whereas explicit nulls/empty can sometimes overwrite existing values.
+  const cleaned = {};
+  for(const k of Object.keys(payload)){
+    if(payload[k] !== null && payload[k] !== undefined && payload[k] !== '') cleaned[k] = payload[k];
+  }
+
+  return {
+    payload: cleaned,
+    measurementMatched: measurementResult.matched,
+    measurementDropped: measurementResult.dropped,
+    environmentMatched: environmentResult.matched,
+    environmentDropped: environmentResult.dropped,
+  };
+}
+
+/* Top-level: collect values, create/link advertiser org, create deal, return summary. */
+async function createPipedriveDeal(){
+  if(!getPipedriveToken() || !getPipedriveCompany()){
+    throw new Error("Pipedrive not connected. Click the Pipedrive gear to set token + company.");
+  }
+  const values = collectIoValues();
+
+  // Validation: title-required minimum
+  if(!values.advertiser) throw new Error("Advertiser is required.");
+  if(!values.agency) throw new Error("Agency is required.");
+  if(!values.campaign) throw new Error("Campaign is required.");
+
+  const defaults = collectPipedriveDefaults();
+
+  // Step 1: search or create the Advertiser org
+  const advOrgName = `${values.agency} - ${values.advertiser}`;
+  const advOrgResult = await findOrCreateAdvertiserOrg(advOrgName);
+
+  // Step 2: build payload
+  const built = buildDealPayload(values, defaults, advOrgResult.id);
+
+  // Step 3: POST /deals
+  const deal = await pdRequest('POST', '/deals', built.payload);
+
+  // Construct deal URL for the success message
+  const dealUrl = `https://${getPipedriveCompany()}.pipedrive.com/deal/${deal.id}`;
+
+  return {
+    deal,
+    dealUrl,
+    advOrgId: advOrgResult.id,
+    advOrgName,
+    advOrgAction: advOrgResult.action,    // "linked" or "created"
+    measurementDropped: built.measurementDropped,
+    environmentDropped: built.environmentDropped,
+  };
+}
+
+/* Read the editable Pipedrive Defaults card values. Some are <select multiple>. */
+function collectPipedriveDefaults(){
+  const multiVals = (id) => {
+    const sel = $(id);
+    if(!sel) return [];
+    return Array.from(sel.selectedOptions).map(o => o.value);
+  };
+  const v = (id) => ($(id) ? $(id).value : '');
+  return {
+    orgId:         parseInt(v('pd_org_id'), 10) || profile().pipedrive.orgId,
+    personId:      parseInt(v('pd_person_id'), 10) || profile().pipedrive.personId,
+    anythingNew:   v('pd_anything_new') || 'yes',
+    emailProposal: v('pd_email_proposal') || 'no',
+    primaryKpi:    multiVals('pd_primary_kpi'),
+    tactics:       multiVals('pd_tactics'),
+  };
+}
+
+/* Submission-form channel label -> our channel label */
+const FORM_CHANNEL_MAP = {
+  "display":"Display Banners",
+  "native":"Native Display",
+  "facebook":"Paid Social",
+  "instagram":"Paid Social",
+  "facebook / instagram":"Paid Social",
+  "meta":"Paid Social",
+  "paid social":"Paid Social",
+  "olv":"In-Stream Video",
+  "online video":"In-Stream Video",
+  "ctv":"Connected TV / OTT",
+  "ctv/ott":"Connected TV / OTT",
+  "ott":"Connected TV / OTT",
+  "youtube":"YouTube",
+  "audio":"Streaming Audio",
+  "streaming audio":"Streaming Audio",
+  "dooh":"pDOOH",
+  "pdooh":"pDOOH",
+  "digital out of home":"pDOOH"
+};
+
+/* ==== Populate the channel selects ==== */
+function buildChannelSelects(){
+  document.querySelectorAll('select[data-ch]').forEach(sel => {
+    sel.innerHTML = CHANNELS.map(c => `<option value="${c.label}">${c.label}</option>`).join('');
+    sel.value = "(none)";
+    sel.addEventListener('change', () => {
+      autoSuggestCpmIfEmpty();
+      renderPreview();
+    });
+  });
+}
+
+/* Auto-fill Blended CPM from selected channels if the user hasn't manually entered one.
+   Uses the straight average of the default rates on the auto_IO CPM grid. */
+function autoSuggestCpmIfEmpty(){
+  const cpmEl = $("f_cpm");
+  if(cpmEl.value && parseFloat(cpmEl.value) > 0) return; // don't overwrite a manual value
+  const chans = getChannelList();
+  const rates = chans.map(c => CHANNELS.find(x=>x.label===c)?.rate).filter(r => r!=null);
+  if(!rates.length) return;
+  const avg = rates.reduce((a,b)=>a+b,0) / rates.length;
+  cpmEl.value = avg.toFixed(2);
+}
+
+/* ==== Form I/O helpers ==== */
+const $ = id => document.getElementById(id);
+function getChannelList(){
+  return Array.from(document.querySelectorAll('select[data-ch]')).map(s => s.value).filter(v => v && v !== "(none)");
+}
+function setChannelList(labels){
+  const selects = Array.from(document.querySelectorAll('select[data-ch]'));
+  selects.forEach(s => s.value = "(none)");
+  labels.slice(0,7).forEach((lbl,i) => { if(selects[i]) selects[i].value = lbl; });
+}
+
+/* ==== Submission parser ====
+   The form prints as: label line, then the value line(s).
+   We match known labels and grab the following non-empty content until the next known label.
+   Before parsing, we strip out Microsoft-Print-to-PDF header/footer noise (timestamp, "about:blank",
+   page numbers) which OCR often concatenates with real values. */
+
+function cleanSubmissionText(txt){
+  return txt
+    // 1. Strip "about:blank" plus any immediately following page-number-ish chars (digits, slashes, spaces, up to 20 chars).
+    //    Handles "about:blank", "about:blank 1/3", "about:blank 113", and OCR merges like "about:blank 1134/22".
+    .replace(/about\s*:\s*blank[\s\d\/]{0,20}/gi, ' ')
+    // 2. Strip Microsoft Print to PDF header timestamps anywhere: "4/22/26, 10:51 AM"
+    .replace(/\d{1,2}\/\d{1,2}\/\d{2,4},?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?/g, ' ')
+    // 3. Strip timestamp fragments that survived ("/26, 10:51 AM" after about:blank ate the front)
+    .replace(/\/\d{2,4},?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?/g, ' ')
+    // 3b. Strip orphan time suffixes that are left if the date prefix got consumed elsewhere
+    //     (e.g., ", 10:51 AM", " 10:51 AM"). Form values never contain these.
+    .replace(/,?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)/g, ' ')
+    // 4. Strip "WorkForms Submission Viewer" wherever it appears
+    .replace(/WorkForms\s+Submission\s+Viewer/gi, ' ')
+    // 5. Strip standalone page-number lines "1/3", "2/3", "3/3"
+    .replace(/^\s*\d{1,2}\/\d{1,2}\s*$/gm, '')
+    // 6. Collapse runs of whitespace, then excess blank lines
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+const LABELS = [
+  "Advertiser Name","Status","Agency Assignment","Campaign Name or Project Name","Campaign Name",
+  "Gross Budget","Submitted By","Flight Date","Geography","Campaign Topic",
+  "Media Channels","Landing Page","File Upload","Proposal Needs","Additional Notes",
+  "Firewall Required?","Submission link","Audience Description"
+];
+function parseSubmission(rawTxt){
+  const txt = cleanSubmissionText(rawTxt);
+  const out = {};
+  const lines = txt.replace(/\r/g,'').split('\n').map(l => l.trim());
+  let currentLabel = null, buf = [];
+  const flush = () => {
+    if(currentLabel !== null){
+      // Post-clean each captured value one more time in case stragglers slipped through
+      let v = buf.join('\n').trim();
+      v = v.replace(/about\s*:\s*blank[\s\d\/]{0,10}/gi,'').trim();
+      v = v.replace(/\s*\d{1,2}\/\d{1,2}\s*$/,'').trim(); // trailing "1/3"
+      v = v.replace(/\s*[123]\s*\/?\s*\d\s*$/,'').trim(); // trailing "113" etc.
+      out[currentLabel] = v;
+    }
+    buf = [];
+  };
+  for(const line of lines){
+    if(!line) continue;
+    const matched = LABELS.find(L => line === L || line === L + ":" || line.toLowerCase() === L.toLowerCase());
+    if(matched){ flush(); currentLabel = matched; }
+    else if(currentLabel){
+      if(line.startsWith("Submitted on ")) continue;
+      if(/^\d{1,2}\/\d{1,2}$/.test(line)) continue;
+      if(line.toLowerCase().includes("workforms submission viewer")) continue;
+      buf.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+/* ==== Date parsing for "20th April 2026 - 3rd May 2026" style ==== */
+function parseFlightDate(str){
+  if(!str) return {start:null,end:null};
+  // Remove ordinal suffixes (st/nd/rd/th)
+  const clean = str.replace(/(\d+)(st|nd|rd|th)/gi, "$1");
+  // Split on "-" or "to"
+  const parts = clean.split(/\s+[-\u2013\u2014]\s+|\s+to\s+/i).map(s => s.trim());
+  const toISO = s => {
+    if(!s) return null;
+    const d = new Date(s);
+    if(isNaN(d)) return null;
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  };
+  return {start: toISO(parts[0]), end: toISO(parts[1]) || toISO(parts[0])};
+}
+
+/* ==== Fill form from parsed submission ==== */
+function fillFromParsed(p){
+  if(p["Advertiser Name"]) $("f_advertiser").value = p["Advertiser Name"];
+  if(p["Agency Assignment"]) $("f_agency").value = p["Agency Assignment"];
+  if(p["Campaign Name or Project Name"] || p["Campaign Name"]) $("f_campaign").value = p["Campaign Name or Project Name"] || p["Campaign Name"];
+  if(p["Gross Budget"]) $("f_budget").value = p["Gross Budget"].replace(/[^0-9.]/g,'');
+  if(p["Landing Page"]) $("f_landing").value = p["Landing Page"];
+  if(p["Geography"]) $("f_geo").value = p["Geography"];
+  if(p["Audience Description"]) $("f_tactics").value = p["Audience Description"];
+  if(p["Additional Notes"]) $("f_medianotes").value = p["Additional Notes"];
+  if(p["Flight Date"]){
+    const fd = parseFlightDate(p["Flight Date"]);
+    if(fd.start) $("f_start").value = fd.start;
+    if(fd.end) $("f_end").value = fd.end;
+    if(fd.start) $("f_titledate").value = fd.start;
+  }
+  if(p["Media Channels"]){
+    // OCR collapses multi-space separators, so split-and-match is unreliable. Instead, scan the
+    // raw Media Channels text for known channel labels as substrings. Process longest keys first
+    // so "facebook / instagram" matches before plain "facebook" / "instagram".
+    const text = ' ' + p["Media Channels"].toLowerCase().replace(/\s+/g, ' ') + ' ';
+    const keys = Object.keys(FORM_CHANNEL_MAP).sort((a, b) => b.length - a.length);
+    const mapped = [];
+    const consumed = []; // [startIndex, endIndex] ranges we've already matched, to avoid double-counting "facebook" after "facebook / instagram"
+    for(const k of keys){
+      let from = 0;
+      while(true){
+        const i = text.indexOf(k, from);
+        if(i < 0) break;
+        // Require a non-letter boundary before/after so "native" doesn't match inside "alternative"
+        const before = text[i - 1] || ' ';
+        const after = text[i + k.length] || ' ';
+        const isBoundary = c => !/[a-z0-9]/.test(c);
+        if(isBoundary(before) && isBoundary(after) && !consumed.some(([s,e]) => i < e && i + k.length > s)){
+          const tgt = FORM_CHANNEL_MAP[k];
+          if(tgt && !mapped.includes(tgt)) mapped.push(tgt);
+          consumed.push([i, i + k.length]);
+        }
+        from = i + k.length;
+      }
+    }
+    if(mapped.length) setChannelList(mapped);
+  }
+  autoSuggestCpmIfEmpty();
+  renderPreview();
+}
+
+/* ==== Preview ==== */
+function fmtMoney(n){ if(n==null||isNaN(n)) return "—"; return "$" + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt(n){ if(n==null||isNaN(n)) return "—"; return Math.round(n).toLocaleString(); }
+
+function renderPreview(){
+  const adv = $("f_advertiser").value.trim();
+  const ag  = $("f_agency").value.trim();
+  const cmp = $("f_campaign").value.trim();
+  const td  = $("f_titledate").value;
+  const monYear = td ? new Date(td+"T00:00:00").toLocaleString('en-US',{month:'short',year:'numeric'}) : "";
+  const ioName = [ag, adv, cmp, monYear].filter(Boolean).join(" | ");
+  $("p_ioname").textContent = ioName || "—";
+  $("p_advertiser").textContent = adv || "—";
+  $("p_agency").textContent = ag || "—";
+  $("p_campaign").textContent = cmp || "—";
+  const s = $("f_start").value, e = $("f_end").value;
+  $("p_flight").textContent = (s && e) ? `${s} → ${e}` : (s || e || "—");
+  $("p_geo").textContent = $("f_geo").value || "—";
+  $("p_landing").textContent = $("f_landing").value || "—";
+  $("p_tactics").textContent = $("f_tactics").value || "—";
+  $("p_env").textContent = $("f_environment").value || "—";
+  $("p_goal").textContent = $("f_goal").value || "—";
+  $("p_kpi").textContent = $("f_kpi").value || "—";
+  $("p_sec").textContent = $("f_secondary").value || "—";
+  $("p_fnotes").textContent = $("f_flightnotes").value || "—";
+  $("p_mnotes").textContent = $("f_medianotes").value || "—";
+
+  const chans = getChannelList();
+  const cpm = parseFloat($("f_cpm").value);
+  const bud = parseFloat($("f_budget").value);
+  const tbody = $("p_channels"); tbody.innerHTML = "";
+  if(!chans.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="small">No channels selected.</td></tr>`;
+  } else {
+    // Single blended line: first channel shows CPM+imps+budget, remaining channels just show row labels
+    chans.forEach((c,i) => {
+      const tr = document.createElement('tr');
+      if(i===0){
+        const imps = (bud && cpm) ? (bud/cpm)*1000 : null;
+        tr.innerHTML = `<td>${c}</td><td class="num">${fmtMoney(cpm)}</td><td class="num">${fmtInt(imps)}</td><td class="num">${fmtMoney(bud)}</td>`;
+      } else {
+        tr.innerHTML = `<td>${c}</td><td class="small">(blended)</td><td class="small">(blended)</td><td class="small">(blended)</td>`;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+  const imps = (bud && cpm) ? (bud/cpm)*1000 : null;
+  $("p_cpm_f").textContent = cpm ? fmtMoney(cpm) : "—";
+  $("p_imp_f").textContent = fmtInt(imps);
+  $("p_bud_f").textContent = fmtMoney(bud);
+}
+
+/* ==== Suggest blended CPM from selected channels (straight average of default rates) ==== */
+function suggestCPM(){
+  const chans = getChannelList();
+  const rates = chans.map(c => CHANNELS.find(x=>x.label===c)?.rate).filter(r => r!=null);
+  if(!rates.length){ alert("Pick channels first."); return; }
+  const avg = rates.reduce((a,b)=>a+b,0) / rates.length;
+  $("f_cpm").value = avg.toFixed(2);
+  renderPreview();
+}
+
+/* ==== PDF generation — build an HTML IO that matches the AX IO template visual layout,
+       capture it with html2canvas, and build the PDF with jsPDF directly. ==== */
+
+function fmtMoney2(n){ return (n==null||isNaN(n)) ? '&mdash;' : '$' + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt0(n){ return (n==null||isNaN(n)) ? '&mdash;' : Math.round(n).toLocaleString(); }
+function fmtDate(iso){
+  if(!iso) return '&mdash;';
+  const d = new Date(iso + 'T00:00:00');
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escMultiline(s){ return esc(s).replace(/\n/g,'<br>'); }
+
+/* ==== collectIoValues =========================================================
+   Single source of truth for "what's currently in the form". Both buildIoHtml() (PDF render)
+   and createPipedriveDeal() consume this. Reading the DOM in one place means every downstream
+   consumer sees the same snapshot.
+   Returns a typed object — null/empty fields are normalized to null/empty string consistently. */
+function collectIoValues(){
+  const v = (id) => ($(id) ? $(id).value : '');
+  const trimmed = (id) => v(id).trim();
+  const num = (id) => { const n = parseFloat(v(id)); return isNaN(n) ? null : n; };
+  const isoDate = (id) => v(id) || null;
+
+  const advertiser = trimmed('f_advertiser');
+  const agency     = trimmed('f_agency');
+  const campaign   = trimmed('f_campaign');
+  const channels   = getChannelList();
+  const budget     = num('f_budget');
+  const cpm        = num('f_cpm');
+  const minImps    = (budget && cpm) ? (budget / cpm) * 1000 : null;
+  const titleDate  = isoDate('f_titledate');
+  const startDate  = isoDate('f_start');
+  const endDate    = isoDate('f_end');
+  const monYear    = titleDate
+    ? new Date(titleDate + 'T00:00:00').toLocaleString('en-US', {month:'short', year:'numeric'})
+    : '';
+  const ioTitle    = [agency, advertiser, campaign, monYear].filter(Boolean).join(' | ');
+
+  return {
+    advertiser, agency, campaign, channels,
+    budget, cpm, minImps,
+    titleDate, startDate, endDate, monYear, ioTitle,
+    flightNotes: v('f_flightnotes'),
+    landing:     v('f_landing'),
+    geo:         v('f_geo'),
+    tactics:     v('f_tactics'),
+    environment: v('f_environment'),
+    goal:        v('f_goal'),
+    kpi:         v('f_kpi'),
+    secondary:   v('f_secondary'),
+    mediaNotes:  v('f_medianotes'),
+    contacts: {
+      primary: v('f_primary'),
+      email:   v('f_email'),
+      billing: v('f_billing'),
+      attn:    v('f_attn'),
+    },
+  };
+}
+
+function buildIoHtml(v){
+  v = v || collectIoValues();   // defensive: callers can pass a snapshot or rely on a fresh read
+
+  const today = new Date();
+  const todayStr = `${today.getMonth()+1}/${today.getDate()}/${today.getFullYear()}`;
+
+  // Pad channel list to 7 rows max for layout consistency
+  const chanRows = v.channels.slice(0, 7);
+  while(chanRows.length < 7) chanRows.push('');
+
+  // Local aliases so the existing template strings keep working without big rewrites
+  const adv = v.advertiser, ag = v.agency, cmp = v.campaign;
+  const cpm = v.cpm, bud = v.budget, minImps = v.minImps;
+  const ioName = v.ioTitle;
+  const addr = profile().ioAddress; // [line1, line2, line3]
+
+  // The split point: BILLING column starts at 68% (after Channels+CPM+Budget+ImpsCol+IOFlight cols).
+  // Layout totals: Channels 10% + CPM 14% + Imps 14% + Budget 14% + Flight lbl 8% + Flight val 10% = 70%; Total 30%.
+  // Strategy: Landing/... 13% lbl + 25% val + Goal 17% lbl + 15% val = 70%; Notes 30%.
+  // That way the BILLING bar aligns exactly above the IO Total columns.
+
+  return `
+    <div class="io-title">${esc(ioName)}</div>
+    <div class="bar">INSERTION ORDER</div>
+
+    <table class="contact">
+      <colgroup>
+        <col style="width:11%"><col style="width:20%">
+        <col style="width:14%"><col style="width:24%">
+        <col style="width:14%"><col style="width:17%">
+      </colgroup>
+      <tr>
+        <td class="lbl">CREATED</td><td>${esc(todayStr)}</td>
+        <td class="rlbl">PRIMARY CONTACT</td><td>${esc(v.contacts.primary)}</td>
+        <td class="rlbl">CONTACT ADDRESS</td><td class="italic">Invoice via Email Delivery</td>
+      </tr>
+      <tr>
+        <td class="lbl">ADVERTISER</td><td>${esc(adv)}</td>
+        <td class="rlbl">EMAIL</td><td>${esc(v.contacts.email)}</td>
+        <td></td><td>${esc(addr[0]||'')}</td>
+      </tr>
+      <tr>
+        <td class="lbl">AGENCY</td><td>${esc(ag)}</td>
+        <td class="rlbl">BILLING</td><td>${esc(v.contacts.billing)}</td>
+        <td></td><td>${esc(addr[1]||'')}</td>
+      </tr>
+      <tr>
+        <td class="lbl">CAMPAIGN</td><td>${esc(cmp)}</td>
+        <td class="rlbl">NAME/ATTN</td><td>${esc(v.contacts.attn)}</td>
+        <td></td><td>${esc(addr[2]||'')}</td>
+      </tr>
+    </table>
+
+    <div class="split-bar">
+      <div class="bar" style="width:70%">INSERTION ORDER DETAILS</div>
+      <div class="bar" style="width:30%">BILLING</div>
+    </div>
+
+    <table class="details">
+      <colgroup>
+        <col style="width:10%"><col style="width:14%"><col style="width:14%"><col style="width:14%">
+        <col style="width:8%"><col style="width:10%">
+        <col style="width:17%"><col style="width:13%">
+      </colgroup>
+      <tr class="colhdrs">
+        <td>Channels</td>
+        <td>Max Blended CPM Rate</td>
+        <td>Minimum Impressions</td>
+        <td>Media Budget</td>
+        <td colspan="2">IO Flight</td>
+        <td colspan="2">IO Total</td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[0])}</td>
+        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${cpm ? fmtMoney2(cpm) : ''}</td>
+        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${minImps!=null?fmtInt0(minImps):''}</td>
+        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${bud?fmtMoney2(bud):''}</td>
+        <td class="rlbl">Start</td><td>${fmtDate(v.startDate)}</td>
+        <td class="rlbl">Min. Impressions:</td><td>${minImps!=null?fmtInt0(minImps):''}</td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[1])}</td>
+        <td class="rlbl">End</td><td>${fmtDate(v.endDate)}</td>
+        <td class="rlbl">Blended eCPM:</td><td>${cpm ? fmtMoney2(cpm) : ''}</td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[2])}</td>
+        <td class="rlbl">Flight Notes:</td><td>${esc(v.flightNotes)}</td>
+        <td class="rlbl">Billing Terms:</td><td>Net 30</td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[3])}</td>
+        <td colspan="2" rowspan="3"></td>
+        <td class="rlbl">Additional Costs:</td><td></td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[4])}</td>
+        <td class="rlbl">Discount:</td><td></td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[5])}</td>
+        <td class="rlbl bold dashed-top">Total Budget:</td>
+        <td class="bold dashed-top">${bud?fmtMoney2(bud):''}</td>
+      </tr>
+      <tr>
+        <td>${esc(chanRows[6])}</td>
+        <td colspan="2"></td>
+        <td colspan="2"></td>
+      </tr>
+    </table>
+
+    <div class="split-bar" style="margin-top:2px">
+      <div class="bar" style="width:70%">MEDIA STRATEGY</div>
+      <div class="bar" style="width:30%">MEDIA NOTES</div>
+    </div>
+
+    <table class="strategy">
+      <colgroup>
+        <col style="width:11%"><col style="width:27%">
+        <col style="width:17%"><col style="width:15%">
+        <col style="width:30%">
+      </colgroup>
+      <tr>
+        <td class="rlbl">Landing Page</td><td>${esc(v.landing)}</td>
+        <td class="rlbl">Primary Goal</td><td>${esc(v.goal)}</td>
+        <td class="notes-cell" rowspan="4">${escMultiline(v.mediaNotes)}</td>
+      </tr>
+      <tr>
+        <td class="rlbl">Tactics</td><td>${esc(v.tactics)}</td>
+        <td class="rlbl">KPI Measurement</td><td>${esc(v.kpi)}</td>
+      </tr>
+      <tr>
+        <td class="rlbl">Environment</td><td>${esc(v.environment)}</td>
+        <td class="rlbl">Secondary Measurement</td><td>${esc(v.secondary)}</td>
+      </tr>
+      <tr>
+        <td class="rlbl">Geo</td><td>${esc(v.geo)}</td>
+        <td></td><td></td>
+      </tr>
+    </table>
+
+    <div class="bar" style="margin-top:2px">AUTHORIZATION</div>
+
+    <div class="legal">
+      NOTES: Depending on marketplace conditions the campaign will likely overdeliver - the impressions listed are the minimum guaranteed<br>
+      Media dollars are fluid and can be shifted from less effective strategies to those that work best<br>
+      All buying targets pre-bid Viewability, Brand-safety.  Media purchased will be screened to exclude explicit sex, gambling, mange, hate, not-safe-for-work, weapons, language, violence.<br>
+      All media purchased will be screened to exclude websites deemed fraudulent or infected with robots, pixel stuffing, and other harmful features<br>
+      IO governed by the IAB/AAAA Standard Terms and Conditions v.3.0
+    </div>
+
+    <div class="sigblock">
+      <div class="sigrow">
+        <span class="sig-lbl">Grapeseed Media Authorized Signature:</span>
+        <span class="sigline"></span>
+        <span class="sig-spacer"></span>
+        <span class="sig-lbl">Date Signed</span>
+        <span class="sigline short"></span>
+      </div>
+      <div class="sigrow">
+        <span class="sig-lbl">Client Authorized Signature:</span>
+        <span class="sigline"></span>
+        <span class="sig-spacer"></span>
+        <span class="sig-lbl">Date Signed</span>
+        <span class="sigline short"></span>
+      </div>
+    </div>
+  `;
+}
+
+/* ===== CSS for the IO render, injected into the capture iframe.
+       Keeping this as a JS constant (rather than a <style> in the parent doc) isolates the IO
+       rendering from the main page's layout — no scroll position, no grid/flex from parent,
+       no surprise overrides. This is what actually styles the PDF. */
+const IO_RENDER_CSS = `
+  html,body{margin:0;padding:0;background:#fff}
+  .io-render{width:10.5in;background:#fff;color:#000;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:10pt}
+  .io-render .io-title{font-size:11pt;font-weight:bold;text-align:center;padding:6px 0 4px}
+  .io-render .bar{background:#2B2B2B;color:#fff;font-weight:bold;font-size:10pt;text-align:center;padding:5px 0;letter-spacing:.04em}
+  .io-render .split-bar{display:flex;width:100%}
+  .io-render .split-bar .bar{flex:0 0 auto}
+  .io-render table{width:100%;border-collapse:collapse;font-size:10pt;margin:0;table-layout:fixed}
+  .io-render table td,.io-render table th{border:0;padding:3px 8px;vertical-align:top;line-height:1.3;word-wrap:break-word;overflow-wrap:break-word}
+  .io-render .lbl{font-weight:bold;white-space:nowrap;text-align:left}
+  .io-render .rlbl{font-weight:bold;text-align:right;white-space:nowrap}
+  .io-render .italic{font-style:italic}
+  .io-render .ctr{text-align:center}
+  .io-render .big-ctr{text-align:center;font-size:10pt}
+  .io-render .bold{font-weight:bold}
+  .io-render .dashed-top{border-top:1px dotted #999 !important}
+  .io-render .colhdrs td{font-weight:bold;text-align:center;font-size:9.5pt;padding:4px 6px;white-space:nowrap}
+  .io-render .notes-cell{white-space:pre-wrap;font-size:9.5pt;padding:6px 10px;vertical-align:top}
+  .io-render .contact td{padding:4px 8px}
+  .io-render .details td{padding:4px 8px}
+  .io-render .strategy td{padding:5px 8px}
+  .io-render .legal{font-size:7.5pt;padding:8px 16px 0;line-height:1.4}
+  .io-render .sigblock{padding:8px 16px 4px}
+  .io-render .sigrow{display:flex;align-items:flex-end;gap:10px;padding:18px 0 2px;font-size:10pt}
+  .io-render .sig-lbl{font-weight:bold;white-space:nowrap}
+  .io-render .sigline{border-bottom:1px solid #000;flex:0 0 2.5in;height:1.1em}
+  .io-render .sigline.short{flex:0 0 1.2in}
+  .io-render .sig-spacer{flex:0 0 .3in}
+`;
+
+async function generatePdf(){
+  const status = $("status");
+  status.style.display="block"; status.className="status"; status.innerHTML = '<span class="spin"></span>Rendering IO PDF…';
+
+  // Verify html2canvas and jsPDF loaded from CDN
+  const missing = [];
+  if(typeof html2canvas === 'undefined') missing.push('html2canvas');
+  if(typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) missing.push('jsPDF');
+  if(missing.length){
+    status.className="status err";
+    status.textContent = `PDF libraries didn't load (${missing.join(', ')}). If this persists, check your browser's console for a CDN block.`;
+    return;
+  }
+
+  // Snapshot form once. PDF render (and later Pipedrive create) both consume the same snapshot.
+  const values = collectIoValues();
+
+  // Build filename
+  const safe = s => (s || 'IO').replace(/[\\\/:*?"<>|]/g,'').trim();
+  const fname = `IO_${safe(values.agency)}_${safe(values.advertiser)}_${safe(values.campaign)}.pdf`.replace(/\s+/g,'_');
+
+  // Show a shield so the user doesn't see the iframe flicker
+  const shield = document.createElement('div');
+  shield.className = 'io-render-shield';
+  shield.innerHTML = '<div class="card"><span class="spin"></span>Rendering IO PDF…</div>';
+  document.body.appendChild(shield);
+
+  // Create an isolated iframe just for rendering. Keeping it off-screen is fine here because
+  // html2canvas is captures the content INSIDE the iframe (the iframe's body), not the iframe
+  // as positioned in the parent — so parent-side positioning doesn't affect the capture math.
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden','true');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:1100px;height:900px;border:0;opacity:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(iframe);
+
+  try{
+    // Write a self-contained HTML doc into the iframe
+    const idoc = iframe.contentDocument;
+    idoc.open();
+    idoc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>${IO_RENDER_CSS}</style></head><body><div id="io" class="io-render">${buildIoHtml(values)}</div></body></html>`);
+    idoc.close();
+
+    // Wait for iframe to fully render
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise(r => setTimeout(r, 120));
+
+    const target = idoc.getElementById('io');
+    if(!target) throw new Error("Render target missing in iframe");
+
+    // Capture via html2canvas — pointed at the iframe element, which lives in an isolated context
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      letterRendering: true,
+      // Match the iframe's internal viewport so html2canvas doesn't guess
+      windowWidth: 1100,
+      windowHeight: Math.max(target.scrollHeight, 900)
+    });
+
+    // Build the PDF with explicit image placement
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'in', format: 'letter', orientation: 'landscape', compress: true });
+    const pageW = pdf.internal.pageSize.getWidth();   // 11
+    const pageH = pdf.internal.pageSize.getHeight();  // 8.5
+    const margin = 0.25;
+    const maxW = pageW - margin*2;  // 10.5
+    const maxH = pageH - margin*2;  // 8.0
+
+    // Scale image to fit within usable area, preserving aspect
+    const imgAspect = canvas.width / canvas.height;
+    let imgW = maxW;
+    let imgH = imgW / imgAspect;
+    if(imgH > maxH){
+      imgH = maxH;
+      imgW = imgH * imgAspect;
+    }
+    const x = margin + (maxW - imgW)/2;  // center horizontally if narrower than maxW
+    const y = margin;
+
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', x, y, imgW, imgH);
+    pdf.save(fname);
+
+    status.className="status ok"; status.textContent = `Downloaded ${fname}`;
+  }catch(err){
+    console.error(err);
+    status.className="status err"; status.textContent = "PDF error: " + err.message;
+  } finally {
+    shield.remove();
+    iframe.remove();
+  }
+}
+
+/* ==== Example submission for quick testing ==== */
+const EXAMPLE = `Campaign Submission
+Advertiser Name
+Savannah Martin for PA
+Status
+NEW
+Agency Assignment
+AxMedia
+Campaign Name or Project Name
+PA HD-88 Primary Election
+Gross Budget
+7490
+Submitted By
+Ben
+Flight Date
+20th April 2026 - 3rd May 2026
+Geography
+PA HD-88
+Campaign Topic
+Candidate (State/Local)
+Media Channels
+Native    Display    Facebook / Instagram
+Landing Page
+https://savannahmartinforpa.com/
+File Upload
+Facebook Post Savannah Martin Intro.docx
+Proposal Needs
+No Proposal - Send IO
+Additional Notes
+$2,210 on display/native
+$5,280 on Meta
+Use the endorsed creatives we made for these two weeks
+Firewall Required?
+No
+Submission link
+https://forms.monday.com/forms/7fd65ad2decb0a062ed7e8c1feca6d16?r=use1&submissionId=1da51b31-44e5-4799-82b0-211b54ff7eb3
+Audience Description
+Primary Voters
+Submitted on Apr 20, 2026`;
+
+/* ==== PDF processing: text extraction first, OCR fallback ==== */
+let PDF_FILE_CACHE = null; // Keep last-dropped file for OCR retry
+
+async function loadPdfjsWorker(){
+  if(typeof pdfjsLib === 'undefined') throw new Error("PDF.js didn't load — check your internet connection.");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function openPdf(file){
+  await loadPdfjsWorker();
+  const buf = await file.arrayBuffer();
+  return await pdfjsLib.getDocument({data: buf}).promise;
+}
+
+async function extractPdfText(pdf){
+  let full = '';
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const byY = new Map();
+    for(const it of tc.items){
+      if(!it.str) continue;
+      const y = Math.round(it.transform[5]);
+      if(!byY.has(y)) byY.set(y, []);
+      byY.get(y).push(it);
+    }
+    const ys = [...byY.keys()].sort((a,b) => b-a);
+    for(const y of ys){
+      const items = byY.get(y).sort((a,b) => a.transform[4] - b.transform[4]);
+      const line = items.map(it => it.str).join('').replace(/\s+/g,' ').trim();
+      if(line) full += line + '\n';
+    }
+    full += '\n';
+  }
+  return full;
+}
+
+function loadScriptOnce(src){
+  return new Promise((resolve, reject) => {
+    if(document.querySelector(`script[data-src="${src}"]`)){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.dataset.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function ocrPdf(pdf, statusEl){
+  // Load Tesseract.js on demand (cached after first use)
+  statusEl.textContent = "Loading OCR engine (first time ~5MB)…";
+  await loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js');
+  if(typeof Tesseract === 'undefined') throw new Error("Tesseract.js didn't load");
+
+  statusEl.textContent = "Preparing OCR worker…";
+  const worker = await Tesseract.createWorker('eng', 1, {
+    logger: m => {
+      if(m.status && m.progress != null){
+        statusEl.textContent = `OCR: ${m.status} ${Math.round(m.progress*100)}%`;
+      }
+    },
+    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/worker.min.js',
+    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0',
+    langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+  });
+
+  let full = '';
+  for(let p = 1; p <= pdf.numPages; p++){
+    statusEl.textContent = `OCR page ${p}/${pdf.numPages}…`;
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({scale: 2.0}); // 2x for better OCR accuracy
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({canvasContext: ctx, viewport: vp}).promise;
+    const { data: { text } } = await worker.recognize(canvas);
+    full += text + '\n\n';
+  }
+  await worker.terminate();
+  return full;
+}
+
+/* ==== Dropzone state transitions ==== */
+function dzState(state, msg, sub){
+  const dz = $("dropzone"), big = $("dzbig"), small = $("dzsmall"), reset = $("dzreset");
+  dz.classList.remove('over','loaded','working');
+  if(state === 'working'){
+    dz.classList.add('working');
+    big.innerHTML = `<span class="spin"></span>${msg || 'Processing…'}`;
+    small.textContent = sub || '';
+    reset.style.display = 'none';
+  } else if(state === 'loaded'){
+    dz.classList.add('loaded');
+    big.innerHTML = `<span class="check">&#10003;</span>${msg || 'Loaded'}`;
+    small.textContent = sub || '';
+    reset.style.display = '';
+  } else if(state === 'warn'){
+    dz.classList.add('working');
+    big.textContent = msg || 'Review needed';
+    small.textContent = sub || '';
+    reset.style.display = '';
+  } else {
+    // idle
+    big.textContent = 'Drop the submission PDF here';
+    small.innerHTML = 'or <span class="link">choose a file</span> &nbsp;&middot;&nbsp; .pdf from Monday WorkForms';
+    reset.style.display = 'none';
+  }
+}
+
+async function handlePdfFile(file, forceOcr = false){
+  const s = $("status"); s.style.display="block"; s.className="status"; s.textContent = `Reading ${file.name}…`;
+  dzState('working', `Reading ${file.name}…`, 'Extracting text from PDF');
+  PDF_FILE_CACHE = file;
+  try{
+    if(!/\.pdf$/i.test(file.name)){ throw new Error("That's not a PDF."); }
+    const pdf = await openPdf(file);
+
+    let text = '';
+    let usedOcr = false;
+    if(!forceOcr){
+      text = await extractPdfText(pdf);
+    }
+
+    // Heuristic: if extraction yielded basically nothing OR matched no labels, fall back to OCR
+    const parsedDry = text ? parseSubmission(text) : {};
+    const labelsMatched = Object.keys(parsedDry).length;
+
+    if(forceOcr || text.trim().length < 40 || labelsMatched === 0){
+      const why = text.trim().length < 40
+        ? "No selectable text in PDF — running OCR (may take a few seconds)…"
+        : "Running OCR on PDF…";
+      s.className = "status"; s.textContent = why;
+      dzState('working', 'Running OCR…', 'First run downloads ~5MB of language data');
+      text = await ocrPdf(pdf, s);
+      usedOcr = true;
+    }
+
+    if($("paste")) $("paste").value = text;
+    const parsed = parseSubmission(text);
+    fillFromParsed(parsed);
+    const n = Object.keys(parsed).length;
+    const tag = usedOcr ? " · via OCR" : "";
+    if(n > 0){
+      dzState('loaded', file.name, `Parsed ${n} fields${tag} — review and edit below`);
+      s.className = "status ok"; s.textContent = `Loaded ${file.name} · parsed ${n} fields${tag}.`;
+    } else {
+      dzState('warn', file.name, `Loaded${tag} but couldn't match any known fields`);
+      s.className = "status warn";
+      s.innerHTML = `Couldn't find known labels in ${file.name}${tag}. `;
+      if(!usedOcr){
+        const btn = document.createElement('button');
+        btn.textContent = "Try OCR on this PDF"; btn.className = "sec";
+        btn.style.marginLeft = "8px";
+        btn.onclick = () => { if(PDF_FILE_CACHE) handlePdfFile(PDF_FILE_CACHE, true); };
+        s.appendChild(btn);
+      }
+    }
+  }catch(err){
+    console.error(err);
+    dzState('idle');
+    s.className="status err"; s.textContent = "Error: " + err.message;
+  }
+}
+
+/* ==== Wire up ==== */
+document.addEventListener('DOMContentLoaded', () => {
+  buildChannelSelects();
+
+  // Drop zone + file picker
+  const dz = $("dropzone"), fi = $("fileinput"), dzr = $("dzreset");
+  if(dz && fi){
+    dz.addEventListener('click', (e) => { if(e.target.id === 'dzreset') return; fi.click(); });
+    dz.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fi.click(); } });
+    dz.addEventListener('dragover', e => { e.preventDefault(); if(!dz.classList.contains('loaded')) dz.classList.add('over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+    dz.addEventListener('drop', async e => {
+      e.preventDefault(); dz.classList.remove('over');
+      const f = e.dataTransfer?.files?.[0];
+      if(f) await handlePdfFile(f);
+    });
+    fi.addEventListener('change', async e => {
+      const f = e.target.files?.[0];
+      if(f) await handlePdfFile(f);
+      fi.value = ''; // reset so same file can re-trigger
+    });
+    if(dzr){
+      dzr.addEventListener('click', (e) => {
+        e.stopPropagation();
+        PDF_FILE_CACHE = null;
+        dzState('idle');
+        const s = $("status"); if(s) s.style.display = 'none';
+      });
+    }
+  }
+  ['f_advertiser','f_agency','f_campaign','f_titledate','f_start','f_end','f_flightnotes','f_budget','f_cpm',
+   'f_landing','f_geo','f_tactics','f_environment','f_goal','f_kpi','f_secondary','f_medianotes',
+   'f_primary','f_email','f_billing','f_attn'].forEach(id => {
+    $(id).addEventListener('input', renderPreview);
+  });
+  $("parse").onclick = () => {
+    const txt = $("paste").value;
+    if(!txt.trim()){ alert("Paste some submission text first."); return; }
+    const parsed = parseSubmission(txt);
+    fillFromParsed(parsed);
+    const s = $("status"); s.style.display="block"; s.className="status ok";
+    s.textContent = "Parsed " + Object.keys(parsed).length + " fields.";
+  };
+  $("loadexample").onclick = () => {
+    $("paste").value = EXAMPLE;
+    const parsed = parseSubmission(EXAMPLE);
+    fillFromParsed(parsed);
+    dzState('loaded', 'Example submission', `Parsed ${Object.keys(parsed).length} fields from the bundled example`);
+  };
+  $("clearbtn").onclick = () => {
+    document.querySelectorAll('input, textarea').forEach(el => {
+      if(['f_agency','f_environment','f_goal','f_kpi','f_secondary','f_primary','f_email','f_billing','f_attn'].includes(el.id)) return;
+      if(el.type === 'date' || el.type === 'number' || el.type === 'text' || el.tagName === 'TEXTAREA') el.value = '';
+    });
+    setChannelList([]);
+    PDF_FILE_CACHE = null;
+    dzState('idle');
+    const s = $("status"); if(s) s.style.display = 'none';
+    renderPreview();
+  };
+  $("suggestcpm").onclick = suggestCPM;
+  $("download").onclick = generatePdf;
+
+  /* ==== Monday integration wiring ==== */
+  function refreshMondayHint(){
+    const hint = $("monday_hint");
+    const t = getMondayToken();
+    if(t){
+      hint.className = 'monday-hint ok';
+      hint.innerHTML = `Connected to Monday (token ending <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:11.5px">${tokenTail(t)}</code>) \u00b7 paste an item ID above and click Fetch.`;
+    } else {
+      hint.className = 'monday-hint';
+      hint.innerHTML = `No Monday connection yet. Click the \u2699 icon to paste your API token, then fetch any item from the <code style="background:var(--panel-2);padding:1px 5px;border-radius:4px;font-size:11.5px">\ud83d\udfe8Ax Submissions</code> board.`;
+    }
+  }
+  refreshMondayHint();
+
+  // Fetch button / Enter key
+  async function doMondayFetch(){
+    const idRaw = $("monday_item").value.trim();
+    if(!idRaw){ alert("Enter a Monday item ID first."); return; }
+    // Accept a full URL and pull the trailing number out
+    const id = (idRaw.match(/(\d{6,})/) || [,idRaw])[1];
+    const s = $("status"); s.style.display="block"; s.className="status"; s.innerHTML = '<span class="spin"></span>Fetching from Monday…';
+    dzState('working', `Fetching item ${id}…`, 'Reading from Monday API');
+    try {
+      const item = await fetchMondayItem(id);
+      applyMondayItem(item);
+      dzState('loaded', item.name || `Item ${id}`, `Loaded from Monday \u00b7 review and edit below`);
+      s.className = "status ok"; s.textContent = `Loaded "${item.name}" from Monday.`;
+    } catch (err) {
+      console.error(err);
+      dzState('idle');
+      s.className = "status err"; s.textContent = err.message;
+    }
+  }
+  $("monday_fetch").onclick = doMondayFetch;
+  $("monday_item").addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); doMondayFetch(); } });
+
+  // Settings modal open/close + save/clear
+  const modal = $("monday_modal");
+  function openModal(){
+    const t = getMondayToken();
+    if(t){
+      $("mm_saved_block").style.display = '';
+      $("mm_saved").textContent = `Token saved (ends in ${tokenTail(t)})`;
+    } else {
+      $("mm_saved_block").style.display = 'none';
+    }
+    $("mm_token").value = '';
+    modal.style.display = 'flex';
+    setTimeout(() => $("mm_token").focus(), 50);
+  }
+  function closeModal(){ modal.style.display = 'none'; $("mm_token").value = ''; }
+  $("monday_settings").onclick = openModal;
+  $("mm_cancel").onclick = closeModal;
+  modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && modal.style.display !== 'none') closeModal(); });
+  $("mm_save").onclick = () => {
+    const t = $("mm_token").value.trim();
+    if(!t){ alert("Paste a token first (or click Clear saved to remove the existing one)."); return; }
+    setMondayToken(t);
+    refreshMondayHint();
+    closeModal();
+    const s = $("status"); s.style.display="block"; s.className="status ok"; s.textContent = "Monday token saved.";
+  };
+  $("mm_clear").onclick = () => {
+    if(!confirm("Remove the saved Monday token from this browser?")) return;
+    setMondayToken("");
+    refreshMondayHint();
+    closeModal();
+    const s = $("status"); s.style.display="block"; s.className="status"; s.textContent = "Monday token cleared.";
+  };
+
+  /* ==== Pipedrive modal + Create Deal wiring ==== */
+  const pdModal = $("pipedrive_modal");
+  function openPdModal(){
+    const t = getPipedriveToken(), c = getPipedriveCompany();
+    if(t){
+      $("pm_saved_block").style.display = '';
+      $("pm_saved").textContent = `Token saved (ends in ${tokenTail(t)}) ${c ? '· company: ' + c : ''}`;
+    } else {
+      $("pm_saved_block").style.display = 'none';
+    }
+    $("pm_token").value = '';
+    $("pm_company").value = c || '';
+    pdModal.style.display = 'flex';
+    setTimeout(() => $("pm_company").focus(), 50);
+  }
+  function closePdModal(){ pdModal.style.display = 'none'; $("pm_token").value = ''; }
+  $("pipedrive_settings").onclick = openPdModal;
+  $("pm_cancel").onclick = closePdModal;
+  pdModal.addEventListener('click', e => { if(e.target === pdModal) closePdModal(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && pdModal.style.display !== 'none') closePdModal(); });
+  $("pm_save").onclick = () => {
+    const t = $("pm_token").value.trim();
+    const c = $("pm_company").value.trim().toLowerCase().replace(/\.pipedrive\.com.*/, '');
+    if(!c){ alert("Enter your company subdomain (e.g., grapeseedmedia)."); return; }
+    if(!t && !getPipedriveToken()){ alert("Paste a token first."); return; }
+    if(t) setPipedriveToken(t);
+    setPipedriveCompany(c);
+    closePdModal();
+    const s = $("status"); s.style.display="block"; s.className="status ok";
+    s.textContent = `Pipedrive connection saved (${c}.pipedrive.com).`;
+  };
+  $("pm_clear").onclick = () => {
+    if(!confirm("Remove the saved Pipedrive token + company from this browser?")) return;
+    setPipedriveToken(""); setPipedriveCompany("");
+    closePdModal();
+    const s = $("status"); s.style.display="block"; s.className="status"; s.textContent = "Pipedrive connection cleared.";
+  };
+
+  $("create_deal").onclick = async () => {
+    const s = $("status"); s.style.display="block"; s.className="status"; s.innerHTML = '<span class="spin"></span>Creating Pipedrive deal…';
+    try {
+      const result = await createPipedriveDeal();
+      const droppedNotes = [];
+      if(result.measurementDropped.length){
+        droppedNotes.push(`Measurement: dropped ${result.measurementDropped.length} unmatched (${result.measurementDropped.join(', ')})`);
+      }
+      if(result.environmentDropped.length){
+        droppedNotes.push(`Environment: dropped ${result.environmentDropped.length} unmatched (${result.environmentDropped.join(', ')})`);
+      }
+      const droppedHtml = droppedNotes.length ? `<br><span style="opacity:.85">${droppedNotes.join(' &middot; ')}</span>` : '';
+      s.className="status ok";
+      s.innerHTML = `Deal #${result.deal.id} created. Advertiser org "${esc(result.advOrgName)}" was <b>${result.advOrgAction}</b>. <a href="${result.dealUrl}" target="_blank" rel="noopener">Open in Pipedrive &rarr;</a>${droppedHtml}`;
+    } catch (err) {
+      console.error(err);
+      s.className="status err"; s.textContent = "Pipedrive error: " + err.message;
+    }
+  };
+
+  $("copyjson").onclick = () => {
+    const obj = {
+      advertiser:$("f_advertiser").value, agency:$("f_agency").value, campaign:$("f_campaign").value,
+      titleDate:$("f_titledate").value, start:$("f_start").value, end:$("f_end").value,
+      flightNotes:$("f_flightnotes").value, budget:$("f_budget").value, cpm:$("f_cpm").value,
+      channels:getChannelList(), landing:$("f_landing").value, geo:$("f_geo").value,
+      tactics:$("f_tactics").value, environment:$("f_environment").value, goal:$("f_goal").value,
+      kpi:$("f_kpi").value, secondary:$("f_secondary").value, mediaNotes:$("f_medianotes").value
+    };
+    navigator.clipboard.writeText(JSON.stringify(obj,null,2)).then(()=>{
+      const s = $("status"); s.style.display="block"; s.className="status ok"; s.textContent="Copied JSON to clipboard.";
+    });
+  };
+  renderPreview();
+});
+</script>
+</body>
+</html>

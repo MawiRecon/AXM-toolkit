@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>AXM Toolkit</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#3D3D3A;border-radius:999px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#4D4D49}
+
+  .layout{display:flex;height:100vh;overflow:hidden}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    --w:248px;
+    width:var(--w);flex:0 0 var(--w);
+    background:#211F1D;border-right:1px solid var(--line-soft);
+    display:flex;flex-direction:column;
+    transition:width .18s ease, flex-basis .18s ease;
+    overflow:hidden;
+  }
+  body.collapsed .sidebar{--w:64px}
+
+  .brand{
+    display:flex;align-items:center;gap:11px;
+    padding:18px 18px 16px;height:61px;
+    border-bottom:1px solid var(--line-soft);white-space:nowrap;
+  }
+  .brand .logo{
+    flex:0 0 28px;width:28px;height:28px;border-radius:8px;
+    background:var(--accent);color:var(--accent-ink);
+    display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:-.03em;
+  }
+  .brand .word{font-weight:600;font-size:15px;letter-spacing:-.01em}
+  .brand .word b{color:var(--accent)}
+  body.collapsed .brand .word{opacity:0}
+
+  nav{padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow-y:auto;flex:1}
+  .nav-label{
+    font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--faint);padding:8px 12px 6px;white-space:nowrap;
+  }
+  body.collapsed .nav-label{opacity:0}
+
+  .nav-item{
+    display:flex;align-items:center;gap:12px;
+    padding:9px 12px;border-radius:9px;cursor:pointer;
+    color:var(--muted);text-decoration:none;white-space:nowrap;
+    border:1px solid transparent;transition:background .13s ease, color .13s ease;
+  }
+  .nav-item:hover{background:var(--panel);color:var(--ink)}
+  .nav-item.active{background:var(--accent-tint);color:var(--ink);border-color:rgba(201,100,66,0.25)}
+  .nav-item .ico{flex:0 0 20px;width:20px;height:20px;display:grid;place-items:center;color:currentColor}
+  .nav-item .ico svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .nav-item.active .ico{color:var(--accent)}
+  .nav-item .txt{display:flex;flex-direction:column;min-width:0}
+  .nav-item .txt .t{font-size:13px;font-weight:500;line-height:1.25}
+  .nav-item .txt .d{font-size:11px;color:var(--faint);line-height:1.25;overflow:hidden;text-overflow:ellipsis}
+  body.collapsed .nav-item .txt{opacity:0}
+
+  .side-foot{padding:10px;border-top:1px solid var(--line-soft)}
+  .collapse-btn{
+    display:flex;align-items:center;gap:12px;width:100%;
+    background:transparent;border:0;color:var(--faint);cursor:pointer;
+    padding:9px 12px;border-radius:9px;font:inherit;white-space:nowrap;
+  }
+  .collapse-btn:hover{background:var(--panel);color:var(--ink)}
+  .collapse-btn .ico{flex:0 0 20px;width:20px;height:20px;display:grid;place-items:center}
+  .collapse-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+  body.collapsed .collapse-btn svg{transform:rotate(180deg)}
+  body.collapsed .collapse-btn .lbl{opacity:0}
+
+  /* ---------- Main ---------- */
+  main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    height:61px;flex:0 0 61px;display:flex;align-items:center;gap:14px;
+    padding:0 22px;border-bottom:1px solid var(--line-soft);background:var(--bg);
+  }
+  .topbar h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .topbar .crumb{color:var(--faint);font-size:12.5px}
+  .topbar .spacer{flex:1}
+  .topbar a.newtab{
+    display:inline-flex;align-items:center;gap:7px;color:var(--muted);text-decoration:none;
+    font-size:12.5px;padding:6px 11px;border:1px solid var(--line);border-radius:8px;transition:.13s;
+  }
+  .topbar a.newtab:hover{color:var(--ink);border-color:var(--border-strong);background:var(--panel)}
+  .topbar a.newtab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .frame-wrap{flex:1;position:relative;background:var(--bg)}
+  iframe.tool{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+
+  /* mobile: sidebar collapses to icon rail */
+  @media(max-width:720px){
+    .sidebar{--w:64px}
+    .sidebar .brand .word,.nav-label,.nav-item .txt,.collapse-btn .lbl{opacity:0}
+  }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">AX</div>
+        <div class="word">AXM <b>Toolkit</b></div>
+      </div>
+      <nav id="nav"><!-- populated by shell.js --></nav>
+      <div class="side-foot">
+        <button class="collapse-btn" id="collapseBtn" title="Collapse sidebar">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span>
+          <span class="lbl">Collapse</span>
+        </button>
+      </div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <h1 id="toolTitle">AXM Toolkit</h1>
+        <span class="crumb" id="toolCrumb"></span>
+        <span class="spacer"></span>
+        <a class="newtab" id="openNew" href="#" target="_blank" rel="noopener" title="Open this tool in a new tab">
+          <svg viewBox="0 0 24 24"><path d="M14 3h7v7"/><path d="M10 14L21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Open in new tab
+        </a>
+      </div>
+      <div class="frame-wrap">
+        <iframe class="tool" id="toolFrame" title="Active tool" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </main>
+  </div>
+  <script src="shell.js"></script>
+</body>
+</html>

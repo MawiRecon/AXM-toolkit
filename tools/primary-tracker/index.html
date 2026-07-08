@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AxMedia Primary Tracker · 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  /* Palette lives in ../../theme.css (shared across AXM Toolkit) — re-skins
+     this tracker from GitHub-blue to the warm "Autofiller" palette. */
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .app {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 28px 80px;
+  }
+
+  header.app-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    letter-spacing: -0.005em;
+  }
+
+  h2 .count {
+    color: var(--text-faint);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 6px;
+  }
+
+  section {
+    margin-bottom: 32px;
+  }
+
+  /* INCREASE IMPRESSIONS alert */
+  .impressions-alert {
+    display: none;
+    background: linear-gradient(90deg, var(--red-bg), transparent 80%);
+    border: 1px solid var(--red);
+    border-left: 3px solid var(--red);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    animation: pulseFlash 2.4s ease-in-out infinite;
+  }
+  .impressions-alert.show { display: block; }
+  .impressions-alert .label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--red);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .impressions-alert .body {
+    font-size: 14px;
+    color: var(--text);
+  }
+  .impressions-alert ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    color: var(--text-dim);
+  }
+  .impressions-alert li {
+    color: var(--text);
+    font-size: 13px;
+  }
+  .impressions-alert .candidate-name {
+    font-weight: 600;
+  }
+  @keyframes pulseFlash {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.0); }
+    50% { box-shadow: 0 0 0 4px rgba(248, 81, 73, 0.18); }
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 10px 12px;
+    background: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 13px;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+  td.col-date { white-space: nowrap; font-weight: 500; }
+  td.col-day { color: var(--text-dim); }
+  td.col-state { font-weight: 500; }
+  td.col-offices { color: var(--text-dim); font-size: 12px; }
+  td.col-notes { color: var(--text); font-size: 12.5px; }
+  td.col-tier, td.col-actions { white-space: nowrap; }
+
+  .empty-state {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    background: var(--bg-elev);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+  }
+
+  /* Tier badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge-flash {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid var(--red);
+    animation: badgeFlash 1.4s ease-in-out infinite;
+  }
+  .badge-urgent { background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,81,73,0.5); }
+  .badge-final { background: var(--orange-bg); color: var(--orange); border: 1px solid rgba(240,136,62,0.5); }
+  .badge-planning { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(210,153,34,0.5); }
+  .badge-future { background: var(--neutral-bg); color: var(--neutral); border: 1px solid rgba(110,118,129,0.4); }
+  .badge-past { background: transparent; color: var(--text-faint); border: 1px solid var(--border); }
+
+  @keyframes badgeFlash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  .countdown {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-left: 6px;
+    font-weight: 400;
+  }
+
+  /* Roster row */
+  .roster-name { font-weight: 600; color: var(--text); }
+  .roster-meta { color: var(--text-dim); font-size: 12px; }
+  .roster-source-tag {
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 6px;
+  }
+
+  /* Buttons */
+  button {
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  button:hover { background: var(--border); border-color: var(--text-faint); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: white;
+  }
+  button.primary:hover { background: var(--accent); }
+  button.danger { color: var(--red); border-color: rgba(248,81,73,0.4); }
+  button.danger:hover { background: var(--red-bg); }
+  button.icon-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  button.slack-btn { margin-right: 4px; }
+  button.slack-btn.muted {
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-faint);
+  }
+  button.slack-btn.muted:hover {
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.02);
+  }
+  button.slack-btn.sent {
+    background: var(--green);
+    border-color: var(--green);
+    color: white;
+    cursor: default;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+  }
+  button.slack-btn.sent:hover { background: var(--green); }
+
+  /* Roster management */
+  .roster-mgmt {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .roster-mgmt textarea {
+    width: 100%;
+    min-height: 64px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .roster-mgmt textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .roster-mgmt-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .roster-help {
+    color: var(--text-faint);
+    font-size: 12px;
+    flex: 1;
+    min-width: 240px;
+  }
+  .roster-help.dirty { color: var(--orange); }
+  .roster-help.synced { color: var(--green); }
+  .roster-mgmt-actions { flex-wrap: wrap; }
+
+  /* Filter row */
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .filter-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .filter-row input[type="checkbox"] { accent-color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.18s, transform 0.18s;
+    pointer-events: none;
+    z-index: 100;
+    max-width: 360px;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .toast.error { border-color: var(--red); color: var(--red); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 460px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .modal p {
+    margin: 0 0 18px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .modal .name-highlight {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .modal-field {
+    margin-bottom: 14px;
+  }
+  .modal-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .modal-field select, .modal-field input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .modal-field select:focus, .modal-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .modal-progress {
+    color: var(--text-faint);
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  td.col-custom-notes {
+    color: var(--text);
+    font-size: 12px;
+    max-width: 220px;
+    word-wrap: break-word;
+  }
+  td.col-custom-notes.empty {
+    color: var(--text-faint);
+    font-style: italic;
+  }
+
+  /* Runoff badge in the calendar */
+  .badge-runoff {
+    background: rgba(88, 166, 255, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(88, 166, 255, 0.5);
+    font-size: 10px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  textarea.modal-notes {
+    width: 100%;
+    min-height: 60px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  textarea.modal-notes:focus { outline: none; border-color: var(--accent); }
+
+  /* Collapsible section (used for the bottom calendar) */
+  details summary.section-summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.005em;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  details summary.section-summary::-webkit-details-marker { display: none; }
+  details summary.section-summary::marker { display: none; }
+  details summary.section-summary .count {
+    color: var(--text-faint);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 6px;
+  }
+  details .disclosure-arrow {
+    display: inline-block;
+    transition: transform 0.18s ease;
+    color: var(--text-dim);
+    font-size: 11px;
+    width: 12px;
+  }
+  details[open] .disclosure-arrow { transform: rotate(90deg); }
+
+  /* Tier legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <div>
+      <h1>AxMedia Primary Tracker</h1>
+      <div class="subtitle" id="header-subtitle">2026 cycle · loading…</div>
+    </div>
+    <div class="subtitle" id="today-readout"></div>
+  </header>
+
+  <!-- 11-day INCREASE IMPRESSIONS alert -->
+  <div class="impressions-alert" id="impressions-alert" role="alert">
+    <div class="label">Action prompt · 11 days out</div>
+    <div class="body" id="impressions-alert-body"></div>
+  </div>
+
+  <!-- Roster management -->
+  <section>
+    <h2>Manage Roster</h2>
+    <div class="roster-mgmt">
+      <textarea id="roster-input" placeholder="Paste candidate names — one per line or comma-separated&#10;e.g. John Cornyn, Maura Healey&#10;     Mike Braun"></textarea>
+      <div class="roster-mgmt-actions">
+        <button class="primary" id="add-btn">Add to roster</button>
+        <button id="refresh-btn" title="Re-fetch the roster from Supabase">Refresh</button>
+        <button id="export-btn" title="Download a JSON snapshot of the roster">Backup JSON</button>
+        <span class="roster-help" id="sync-status">Connecting to Supabase…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Client roster panel -->
+  <section id="roster-section">
+    <h2>Client Roster — Upcoming Primaries <span class="count" id="roster-count"></span></h2>
+    <div class="filter-row">
+      <label>
+        <input type="checkbox" id="show-past-roster"> Show past primaries
+      </label>
+    </div>
+    <div id="roster-table-wrap"></div>
+    <div class="legend">
+      <div class="item"><span class="badge badge-flash">≤11d</span> Increase impressions</div>
+      <div class="item"><span class="badge badge-urgent">12–14d</span> Urgent · GOTV</div>
+      <div class="item"><span class="badge badge-final">15–30d</span> Gain Steam</div>
+      <div class="item"><span class="badge badge-planning">31–60d</span> Saturation</div>
+      <div class="item"><span class="badge badge-future">60d+</span> Awareness</div>
+    </div>
+  </section>
+
+  <!-- Full calendar -->
+  <section>
+    <details id="calendar-details">
+      <summary class="section-summary">
+        <span class="disclosure-arrow">▶</span>
+        2026 Primary Calendar <span class="count" id="calendar-count"></span>
+      </summary>
+      <div class="filter-row" style="margin-top:12px;">
+        <label>
+          <input type="checkbox" id="show-past"> Show past primaries
+        </label>
+      </div>
+      <div id="calendar-table-wrap"></div>
+    </details>
+  </section>
+
+</div>
+
+<!-- Edit candidate modal -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <h3>Edit candidate</h3>
+    <p>Update race or custom notes for <span class="name-highlight" id="edit-name"></span>.</p>
+    <div class="modal-field">
+      <label for="edit-state">State</label>
+      <select id="edit-state"></select>
+    </div>
+    <div class="modal-field">
+      <label for="edit-office">Office</label>
+      <select id="edit-office">
+        <option value="">— select office —</option>
+        <option value="Governor">Governor</option>
+        <option value="U.S. Senate">U.S. Senate</option>
+        <option value="U.S. House">U.S. House</option>
+        <option value="State Legislature">State Legislature</option>
+        <option value="Attorney General">Attorney General</option>
+        <option value="Secretary of State">Secretary of State</option>
+        <option value="Other Statewide">Other Statewide</option>
+        <option value="Local">Local</option>
+      </select>
+    </div>
+    <div class="modal-field" id="edit-district-field" style="display:none;">
+      <label for="edit-district">District (House only)</label>
+      <input type="text" id="edit-district" placeholder="e.g. CA-12">
+    </div>
+    <div class="modal-field">
+      <label for="edit-custom-notes">Custom notes</label>
+      <textarea id="edit-custom-notes" class="modal-notes" placeholder="Per-client notes — buy details, optimization decisions, etc."></textarea>
+    </div>
+    <div class="modal-field">
+      <label for="edit-runoff-date">Runoff date <span style="color:var(--text-faint); font-weight:400; text-transform:none; letter-spacing:0;">(optional — overrides primary date)</span></label>
+      <input type="date" id="edit-runoff-date">
+      <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">Set this only if this candidate is in a confirmed runoff. The roster countdown will target this date instead of the primary, and only this client is affected — others in the same state still count down to the primary.</div>
+    </div>
+    <div class="modal-field">
+      <label for="edit-runoff-notes">Runoff notes <span style="color:var(--text-faint); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</span></label>
+      <input type="text" id="edit-runoff-notes" placeholder="e.g. GOP runoff vs. Smith">
+    </div>
+    <div class="modal-field">
+      <label for="edit-slack-url">Slack webhook URL <span style="color:var(--text-faint); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</span></label>
+      <input type="text" id="edit-slack-url" placeholder="https://hooks.slack.com/services/T.../B.../...">
+      <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">Slack incoming webhook tied to this client's channel. The "Send Slack" button on this row uses it.</div>
+    </div>
+    <div class="modal-actions">
+      <button id="edit-cancel">Cancel</button>
+      <button class="primary" id="edit-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual assignment modal -->
+<div class="modal-backdrop" id="manual-modal">
+  <div class="modal">
+    <h3>Assign race manually</h3>
+    <p>Couldn't auto-match <span class="name-highlight" id="manual-name"></span>. Tell us which race they're in.</p>
+    <div class="modal-progress" id="manual-progress"></div>
+    <div class="modal-field">
+      <label for="manual-state">State</label>
+      <select id="manual-state"></select>
+    </div>
+    <div class="modal-field">
+      <label for="manual-office">Office</label>
+      <select id="manual-office">
+        <option value="">— select office —</option>
+        <option value="Governor">Governor</option>
+        <option value="U.S. Senate">U.S. Senate</option>
+        <option value="U.S. House">U.S. House</option>
+        <option value="State Legislature">State Legislature</option>
+        <option value="Attorney General">Attorney General</option>
+        <option value="Secretary of State">Secretary of State</option>
+        <option value="Other Statewide">Other Statewide</option>
+        <option value="Local">Local</option>
+      </select>
+    </div>
+    <div class="modal-field" id="district-field" style="display:none;">
+      <label for="manual-district">District (House only)</label>
+      <input type="text" id="manual-district" placeholder="e.g. CA-12">
+    </div>
+    <div class="modal-field">
+      <label for="manual-slack-url">Slack webhook URL <span style="color:var(--text-faint); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</span></label>
+      <input type="text" id="manual-slack-url" placeholder="https://hooks.slack.com/services/...">
+    </div>
+    <div class="modal-actions">
+      <button id="manual-skip">Skip</button>
+      <button class="primary" id="manual-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =========================================================
+// 2026 PRIMARY CALENDAR DATA
+// Source: NBC News 2026 Primary Calendar (manually curated)
+// Update for 2027/2028 cycles by replacing this array.
+// =========================================================
+const PRIMARIES = [
+  { date: '2026-03-03', state: 'Texas',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Sen. John Cornyn (R) seeks re-election. Gov. Greg Abbott not on ballot until 2026 GOP primary for state offices.',
+    candidates: ['John Cornyn', 'Colin Allred'] },
+  { date: '2026-03-17', state: 'Illinois',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Open Senate seat (Durbin retiring). Gov. JB Pritzker (D) re-election bid.',
+    candidates: ['JB Pritzker', 'Tammy Duckworth'] },
+  { date: '2026-05-05', state: 'Indiana',
+    offices: ['U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Open Senate seat (Braun ran for governor in 2024).',
+    candidates: [] },
+  { date: '2026-05-05', state: 'Ohio',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Open governor (DeWine term-limited). Sen. Jon Husted (R) appointed seat up.',
+    candidates: ['Jon Husted', 'Vivek Ramaswamy'] },
+  { date: '2026-05-05', state: 'North Carolina',
+    offices: ['U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Sen. Thom Tillis (R) seeks re-election. Battleground.',
+    candidates: ['Thom Tillis'] },
+  { date: '2026-05-12', state: 'Nebraska',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Pete Ricketts (R) re-election.',
+    candidates: ['Pete Ricketts'] },
+  { date: '2026-05-12', state: 'West Virginia',
+    offices: ['U.S. House', 'State Legislature'],
+    notes: 'No statewide federal races; House primaries.',
+    candidates: [] },
+  { date: '2026-05-19', state: 'Kentucky',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Mitch McConnell (R) retiring — open seat. Major GOP primary.',
+    candidates: ['Andy Barr', 'Daniel Cameron', 'Nate Morris'] },
+  { date: '2026-05-19', state: 'Oregon',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Jeff Merkley (D) re-election.',
+    candidates: ['Jeff Merkley'] },
+  { date: '2026-05-19', state: 'Idaho',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Jim Risch (R) re-election.',
+    candidates: ['Jim Risch'] },
+  { date: '2026-05-19', state: 'Pennsylvania',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Gov. Josh Shapiro (D) re-election. No Senate race.',
+    candidates: ['Josh Shapiro'] },
+  { date: '2026-05-19', state: 'Arkansas',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Tom Cotton (R) re-election.',
+    candidates: ['Tom Cotton'] },
+  { date: '2026-06-02', state: 'California',
+    offices: ['Governor', 'U.S. House', 'State Legislature'],
+    notes: 'Open governor (Newsom term-limited). Top-two jungle primary.',
+    candidates: ['Katie Porter', 'Antonio Villaraigosa', 'Eleni Kounalakis'] },
+  { date: '2026-06-02', state: 'Iowa',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Joni Ernst (R) re-election. Open governor (Reynolds retiring).',
+    candidates: ['Joni Ernst'] },
+  { date: '2026-06-02', state: 'Mississippi',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Cindy Hyde-Smith (R) re-election.',
+    candidates: ['Cindy Hyde-Smith'] },
+  { date: '2026-06-02', state: 'Montana',
+    offices: ['U.S. House'],
+    notes: 'No statewide federal races.',
+    candidates: [] },
+  { date: '2026-06-02', state: 'New Jersey',
+    offices: ['U.S. House', 'State Legislature'],
+    notes: 'No statewide federal races.',
+    candidates: [] },
+  { date: '2026-06-02', state: 'New Mexico',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Open governor (Lujan Grisham term-limited). Sen. Ben Ray Luján (D) re-election.',
+    candidates: ['Ben Ray Luján'] },
+  { date: '2026-06-02', state: 'South Dakota',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Mike Rounds (R) re-election.',
+    candidates: ['Mike Rounds'] },
+  { date: '2026-06-02', state: 'Alabama',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Tommy Tuberville (R) running for governor — open Senate seat.',
+    candidates: ['Tommy Tuberville', 'Katie Britt'] },
+  { date: '2026-06-09', state: 'Maine',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Susan Collins (R) re-election. Top-tier battleground.',
+    candidates: ['Susan Collins'] },
+  { date: '2026-06-09', state: 'Nevada',
+    offices: ['Governor', 'U.S. House'],
+    notes: 'Gov. Joe Lombardo (R) re-election. No Senate race.',
+    candidates: ['Joe Lombardo'] },
+  { date: '2026-06-09', state: 'North Dakota',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'No competitive statewide federal race expected.',
+    candidates: [] },
+  { date: '2026-06-09', state: 'South Carolina',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Lindsey Graham (R) re-election. Open governor (McMaster term-limited).',
+    candidates: ['Lindsey Graham'] },
+  { date: '2026-06-09', state: 'Virginia',
+    offices: ['U.S. House'],
+    notes: 'Sen. Mark Warner (D) re-election (June primary in some cycles).',
+    candidates: ['Mark Warner'] },
+  { date: '2026-06-16', state: 'Georgia',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Jon Ossoff (D) re-election. Open governor (Kemp term-limited). Major battleground.',
+    candidates: ['Jon Ossoff', 'Brian Kemp'] },
+  { date: '2026-06-23', state: 'Colorado',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. John Hickenlooper (D) re-election. Open governor (Polis term-limited).',
+    candidates: ['John Hickenlooper'] },
+  { date: '2026-06-23', state: 'Maryland',
+    offices: ['U.S. House'],
+    notes: 'No statewide federal races.',
+    candidates: [] },
+  { date: '2026-06-23', state: 'Oklahoma',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. James Lankford (R) re-election.',
+    candidates: ['James Lankford'] },
+  { date: '2026-06-23', state: 'Utah',
+    offices: ['U.S. House'],
+    notes: 'No statewide federal races.',
+    candidates: [] },
+  { date: '2026-06-23', state: 'New York',
+    offices: ['U.S. House', 'State Legislature'],
+    notes: 'Multiple competitive House districts.',
+    candidates: [] },
+  { date: '2026-08-04', state: 'Kansas',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Roger Marshall (R) re-election. Open governor (Kelly term-limited).',
+    candidates: ['Roger Marshall'] },
+  { date: '2026-08-04', state: 'Michigan',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Open Senate seat (Peters retiring). Open governor (Whitmer term-limited). Top battleground.',
+    candidates: ['Mike Rogers', 'Mallory McMorrow', 'Haley Stevens'] },
+  { date: '2026-08-04', state: 'Missouri',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Josh Hawley (R) re-election.',
+    candidates: ['Josh Hawley'] },
+  { date: '2026-08-04', state: 'Washington',
+    offices: ['Governor', 'U.S. House'],
+    notes: 'Top-two primary. No Senate race.',
+    candidates: [] },
+  { date: '2026-08-06', state: 'Tennessee',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House', 'State Legislature'],
+    notes: 'Open governor (Lee term-limited). Sen. Bill Hagerty (R) re-election.',
+    candidates: ['Bill Hagerty'] },
+  { date: '2026-08-11', state: 'Connecticut',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Richard Blumenthal (D) re-election.',
+    candidates: ['Richard Blumenthal'] },
+  { date: '2026-08-11', state: 'Minnesota',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Tina Smith (D) retiring — open seat.',
+    candidates: [] },
+  { date: '2026-08-11', state: 'Vermont',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Bernie Sanders (I) re-election expected.',
+    candidates: ['Bernie Sanders'] },
+  { date: '2026-08-11', state: 'Wisconsin',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Open governor (Evers retiring). Top battleground.',
+    candidates: [] },
+  { date: '2026-08-18', state: 'Alaska',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Dan Sullivan (R) re-election. Top-four ranked-choice primary.',
+    candidates: ['Dan Sullivan'] },
+  { date: '2026-08-18', state: 'Wyoming',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Cynthia Lummis (R) re-election. Open governor (Gordon term-limited).',
+    candidates: ['Cynthia Lummis'] },
+  { date: '2026-09-08', state: 'Delaware',
+    offices: ['U.S. House'],
+    notes: 'No statewide federal races.',
+    candidates: [] },
+  { date: '2026-09-08', state: 'New Hampshire',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Jeanne Shaheen (D) retiring — open seat. Battleground.',
+    candidates: ['Chris Pappas', 'Maggie Goodlander', 'Scott Brown'] },
+  { date: '2026-09-08', state: 'Massachusetts',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Ed Markey (D) re-election. Gov. Maura Healey (D) re-election.',
+    candidates: ['Ed Markey', 'Maura Healey'] },
+  { date: '2026-09-08', state: 'Rhode Island',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Jack Reed (D) re-election.',
+    candidates: ['Jack Reed'] },
+  { date: '2026-09-15', state: 'Hawaii',
+    offices: ['Governor', 'U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Brian Schatz (D) re-election.',
+    candidates: ['Brian Schatz'] },
+  { date: '2026-09-15', state: 'Louisiana',
+    offices: ['U.S. Senate', 'U.S. House'],
+    notes: 'Sen. Bill Cassidy (R) re-election. Jungle primary system.',
+    candidates: ['Bill Cassidy'] }
+];
+
+// =========================================================
+// State list (for manual assignment dropdown)
+// =========================================================
+const ALL_STATES = [...new Set(PRIMARIES.map(p => p.state))].sort();
+
+// =========================================================
+// Storage — Supabase backed, shared across all browsers
+// ---------------------------------------------------------
+// Source of truth: the `roster` table in Supabase.
+// `roster` (in-memory array) mirrors the table. Adds/removes
+// hit Supabase directly; a realtime subscription keeps every
+// open tab in sync. localStorage is used only as an offline
+// cache so the page renders something useful when Supabase
+// is unreachable.
+// =========================================================
+const CACHE_KEY = 'axmedia-primary-tracker.cache.v2';
+
+let roster = [];
+let sb = null;                  // supabase client
+let connectionStatus = 'init';  // 'init' | 'connected' | 'error' | 'misconfigured'
+let connectionMsg = '';
+
+function configValid() {
+  const c = window.SUPABASE_CONFIG || {};
+  return c.url && c.anonKey
+      && !c.url.includes('PASTE_YOUR')
+      && !c.anonKey.includes('PASTE_YOUR');
+}
+
+function initSupabase() {
+  if (!configValid()) {
+    connectionStatus = 'misconfigured';
+    connectionMsg = 'Edit config.js with your Supabase URL and anon key.';
+    return false;
+  }
+  try {
+    sb = window.supabase.createClient(
+      window.SUPABASE_CONFIG.url,
+      window.SUPABASE_CONFIG.anonKey
+    );
+    return true;
+  } catch (e) {
+    connectionStatus = 'error';
+    connectionMsg = e.message;
+    return false;
+  }
+}
+
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || []; }
+  catch { return []; }
+}
+function saveCache(r) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(r)); } catch {}
+}
+
+async function fetchRoster() {
+  if (!sb) {
+    roster = loadCache();
+    return;
+  }
+  try {
+    const { data, error } = await sb
+      .from('roster')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    roster = data || [];
+    saveCache(roster);
+    connectionStatus = 'connected';
+    connectionMsg = '';
+  } catch (e) {
+    console.error('fetchRoster failed:', e);
+    roster = loadCache();
+    connectionStatus = 'error';
+    connectionMsg = e.message || 'Could not reach Supabase.';
+  }
+}
+
+async function insertCandidate(item) {
+  if (!sb) {
+    toast('Supabase not configured — edit config.js.', 'error');
+    return null;
+  }
+  const payload = {
+    name:              item.name,
+    state:             item.state,
+    office:            item.office,
+    district:          item.district || '',
+    source:            item.source || 'manual',
+    slack_webhook_url: item.slack_webhook_url || ''
+  };
+  const { data, error } = await sb.from('roster').insert(payload).select().single();
+  if (error) {
+    toast('Add failed: ' + error.message, 'error');
+    return null;
+  }
+  return data;
+}
+
+async function deleteCandidate(id) {
+  if (!sb) return false;
+  const { error } = await sb.from('roster').delete().eq('id', id);
+  if (error) {
+    toast('Remove failed: ' + error.message, 'error');
+    return false;
+  }
+  return true;
+}
+
+// =========================================================
+// Slack reminder — POST a single-client reminder to that
+// client's Slack incoming-webhook URL.
+// Form-encoded body avoids the CORS preflight that
+// Content-Type: application/json triggers.
+// =========================================================
+async function sendSlackReminder(rosterId) {
+  const row = roster.find(r => r.id === rosterId);
+  if (!row) return;
+  const url = (row.slack_webhook_url || '').trim();
+  if (!url) {
+    toast('No Slack webhook on this client — opening Edit.', 'error');
+    openEditModal(rosterId, { focusSlack: true });
+    return;
+  }
+
+  const today = todayISO();
+  const next = nextElectionForRow(row);
+  if (!next) { toast('No upcoming election for this client.', 'error'); return; }
+  const days = daysUntil(next.date, today);
+  const text = `T-${days} ${days === 1 ? 'day' : 'days'} until voting: ⚡ ⬆️ Surge Impressions ⬆️ ⚡`;
+
+  try {
+    const body = new URLSearchParams({ payload: JSON.stringify({ text }) });
+    const resp = await fetch(url, { method: 'POST', body });
+    if (resp.ok) {
+      toast(`Slack reminder sent · ${row.name}.`, 'success');
+      flashSlackButtonSent(rosterId);
+    } else {
+      const errText = await resp.text();
+      toast(`Slack send failed (${resp.status}): ${errText.slice(0, 80)}`, 'error');
+    }
+  } catch (e) {
+    toast(`Slack send failed: ${e.message}`, 'error');
+  }
+}
+
+function flashSlackButtonSent(rosterId) {
+  const btn = document.querySelector(`button[data-slack-id="${rosterId}"]`);
+  if (!btn) return;
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = '✓ Sent';
+  btn.classList.add('sent');
+  btn.disabled = true;
+  setTimeout(() => {
+    if (!btn.isConnected) return;
+    btn.innerHTML = originalHTML;
+    btn.classList.remove('sent');
+    btn.disabled = false;
+  }, 2500);
+}
+
+async function updateCandidate(id, patch) {
+  if (!sb) {
+    toast('Supabase not configured.', 'error');
+    return false;
+  }
+  const { error } = await sb.from('roster').update(patch).eq('id', id);
+  if (error) {
+    toast('Update failed: ' + error.message, 'error');
+    return false;
+  }
+  return true;
+}
+
+// For roster: a per-client runoff_date overrides the state's primary
+// date. Other clients in the same state are unaffected.
+function nextElectionForRow(row) {
+  if (row.runoff_date) {
+    return {
+      date: row.runoff_date,
+      state: row.state,
+      notes: row.runoff_notes || '',
+      kind: 'runoff'
+    };
+  }
+  const primary = PRIMARIES.find(p => p.state === row.state);
+  if (!primary) return null;
+  return { ...primary, kind: 'primary' };
+}
+
+function subscribeRealtime() {
+  if (!sb) return;
+  sb.channel('roster-changes')
+    .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'roster' },
+        async () => {
+          await fetchRoster();
+          rerender();
+        })
+    .subscribe();
+}
+
+function exportRosterFile() {
+  const json = JSON.stringify(roster, null, 2) + '\n';
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `roster-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Backed up ${roster.length} candidate${roster.length === 1 ? '' : 's'}.`, 'success');
+}
+
+async function refreshRoster() {
+  await fetchRoster();
+  rerender();
+  if (connectionStatus === 'connected') toast('Refreshed.', 'success');
+}
+
+function updateSyncStatus() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.classList.remove('dirty', 'synced');
+  if (connectionStatus === 'misconfigured') {
+    el.classList.add('dirty');
+    el.textContent = '● ' + connectionMsg;
+    return;
+  }
+  if (connectionStatus === 'error') {
+    el.classList.add('dirty');
+    el.textContent = `● Offline · showing cached roster · ${connectionMsg}`;
+    return;
+  }
+  if (connectionStatus === 'connected') {
+    el.classList.add('synced');
+    const n = roster.length;
+    el.textContent = `● Live · ${n} candidate${n === 1 ? '' : 's'} · syncs across all browsers`;
+    return;
+  }
+  el.textContent = '● Connecting to Supabase…';
+}
+
+// =========================================================
+// Date helpers — use a fixed "today" via override-able value
+// =========================================================
+function todayISO() {
+  // Allow override via ?today=YYYY-MM-DD for testing
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('today')) return params.get('today');
+  return new Date().toISOString().slice(0, 10);
+}
+function parseDate(iso) {
+  // YYYY-MM-DD → local Date at midnight
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function daysUntil(iso, fromISO) {
+  const a = parseDate(fromISO);
+  const b = parseDate(iso);
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+function dayOfWeek(iso) {
+  return parseDate(iso).toLocaleDateString('en-US', { weekday: 'short' });
+}
+function fmtDate(iso) {
+  return parseDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtDateLong(iso) {
+  return parseDate(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+// =========================================================
+// Tier logic
+// =========================================================
+function tierFor(daysOut) {
+  if (daysOut < 0) return { key: 'past', label: 'Past', cls: 'badge-past' };
+  if (daysOut <= 11) return { key: 'flash', label: '🚨 INCREASE IMPRESSIONS', cls: 'badge-flash' };
+  if (daysOut <= 14) return { key: 'urgent', label: '🔴 Urgent · GOTV', cls: 'badge-urgent' };
+  if (daysOut <= 30) return { key: 'final', label: '🟠 Gain Steam', cls: 'badge-final' };
+  if (daysOut <= 60) return { key: 'planning', label: '🟡 Saturation', cls: 'badge-planning' };
+  return { key: 'future', label: '⚪ Awareness', cls: 'badge-future' };
+}
+function tierBadgeHTML(daysOut) {
+  const t = tierFor(daysOut);
+  let countdown = '';
+  if (daysOut === 0) countdown = `<span class="countdown">today</span>`;
+  else if (daysOut === 1) countdown = `<span class="countdown">tomorrow</span>`;
+  else if (daysOut > 0) countdown = `<span class="countdown">${daysOut}d</span>`;
+  else countdown = `<span class="countdown">${Math.abs(daysOut)}d ago</span>`;
+  return `<span class="badge ${t.cls}">${t.label}</span>${countdown}`;
+}
+
+// =========================================================
+// Candidate matching
+// =========================================================
+function findPrimaryByCandidate(name) {
+  const n = name.trim().toLowerCase();
+  for (const p of PRIMARIES) {
+    if (p.candidates && p.candidates.some(c => c.toLowerCase() === n)) return p;
+  }
+  // partial match (last name only)
+  for (const p of PRIMARIES) {
+    if (p.candidates && p.candidates.some(c => c.toLowerCase().includes(n))) return p;
+  }
+  return null;
+}
+
+function inferOfficeFromNotes(primary, candidateName) {
+  const lc = (primary.notes || '').toLowerCase();
+  const cn = candidateName.toLowerCase();
+  // crude inference based on context in notes
+  if (lc.includes('sen.') && lc.includes(cn.split(' ').pop())) return 'U.S. Senate';
+  if (lc.includes('gov.') && lc.includes(cn.split(' ').pop())) return 'Governor';
+  // default to most prominent office
+  if (primary.offices.includes('U.S. Senate')) return 'U.S. Senate';
+  if (primary.offices.includes('Governor')) return 'Governor';
+  return primary.offices[0] || 'Other';
+}
+
+// =========================================================
+// Render: Roster panel
+// =========================================================
+function rosterRows(today) {
+  const showPast = document.getElementById('show-past-roster')?.checked || false;
+  return roster.map(r => {
+    const next = nextElectionForRow(r);
+    if (!next) return null;
+    const days = daysUntil(next.date, today);
+    return { ...r, primary: next, days };
+  })
+  .filter(r => r !== null && (showPast || r.days >= 0))
+  .sort((a, b) => a.days - b.days);
+}
+
+function renderRoster(today) {
+  const wrap = document.getElementById('roster-table-wrap');
+  const rows = rosterRows(today);
+  document.getElementById('roster-count').textContent =
+    rows.length === 0 ? '· empty' : `· ${rows.length}`;
+
+  if (roster.length === 0) {
+    wrap.innerHTML = `<div class="empty-state">
+      No clients added yet. Paste candidate names in the box below to start tracking.
+    </div>`;
+  } else if (rows.length === 0) {
+    wrap.innerHTML = `<div class="empty-state">
+      All client primaries are in the past — toggle <em>Show past primaries</em> above to see them, or add new candidates.
+    </div>`;
+  } else {
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Candidate</th>
+            <th>Race</th>
+            <th>Custom Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const isRunoff = r.primary.kind === 'runoff';
+            const customNotes = (r.custom_notes || '').trim();
+            const isFlagged = r.days >= 0 && r.days <= 11;
+            const hasWebhook = !!(r.slack_webhook_url || '').trim();
+            const slackBtn = isFlagged
+              ? (hasWebhook
+                  ? `<button class="icon-btn slack-btn primary" data-slack-id="${r.id}" title="Send Slack reminder to this client's channel">📤 Slack</button>`
+                  : `<button class="icon-btn slack-btn muted" data-slack-set-id="${r.id}" title="No Slack webhook set for this client — click to add one">Set Slack URL</button>`)
+              : '';
+            return `
+            <tr>
+              <td class="col-tier">${tierBadgeHTML(r.days)}${isRunoff ? '<span class="badge-runoff">runoff</span>' : ''}</td>
+              <td class="col-date">${fmtDate(r.primary.date)}</td>
+              <td class="col-day">${dayOfWeek(r.primary.date)}</td>
+              <td>
+                <span class="roster-name">${escapeHtml(r.name)}</span>
+                <span class="roster-source-tag">${r.source === 'manual' ? 'manual' : 'auto'}</span>
+              </td>
+              <td>
+                <div>${escapeHtml(r.state)} · ${escapeHtml(r.office)}${r.district ? ' · ' + escapeHtml(r.district) : ''}</div>
+              </td>
+              <td class="col-custom-notes ${customNotes ? '' : 'empty'}">${customNotes ? escapeHtml(customNotes) : '—'}</td>
+              <td class="col-actions">
+                ${slackBtn}
+                <button class="icon-btn" data-edit-id="${r.id}">Edit</button>
+                <button class="icon-btn danger" data-remove-id="${r.id}">Remove</button>
+              </td>
+            </tr>
+          `;}).join('')}
+        </tbody>
+      </table>
+    `;
+    wrap.querySelectorAll('[data-remove-id]').forEach(btn => {
+      btn.addEventListener('click', () => removeCandidate(btn.dataset.removeId));
+    });
+    wrap.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => openEditModal(btn.dataset.editId));
+    });
+    wrap.querySelectorAll('[data-slack-id]').forEach(btn => {
+      btn.addEventListener('click', () => sendSlackReminder(btn.dataset.slackId));
+    });
+    wrap.querySelectorAll('[data-slack-set-id]').forEach(btn => {
+      btn.addEventListener('click', () => openEditModal(btn.dataset.slackSetId, { focusSlack: true }));
+    });
+  }
+}
+
+// =========================================================
+// Render: Full calendar
+// =========================================================
+function renderCalendar(today) {
+  const wrap = document.getElementById('calendar-table-wrap');
+  const showPast = document.getElementById('show-past').checked;
+
+  let rows = PRIMARIES.map(p => ({ ...p, kind: 'primary', days: daysUntil(p.date, today) }));
+  if (!showPast) rows = rows.filter(r => r.days >= 0);
+  rows.sort((a, b) => a.days - b.days);
+
+  document.getElementById('calendar-count').textContent =
+    `· ${rows.length}${showPast ? ' total' : ' upcoming'}`;
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="empty-state">No matching primaries.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Date</th>
+          <th>Day</th>
+          <th>State</th>
+          <th>Offices</th>
+          <th>Race notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td class="col-tier">${tierBadgeHTML(r.days)}${r.kind === 'runoff' ? '<span class="badge-runoff">runoff</span>' : ''}</td>
+            <td class="col-date">${fmtDate(r.date)}</td>
+            <td class="col-day">${dayOfWeek(r.date)}</td>
+            <td class="col-state">${escapeHtml(r.state)}</td>
+            <td class="col-offices">${r.offices.map(escapeHtml).join(' · ')}</td>
+            <td class="col-notes">${escapeHtml(r.notes || '')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// =========================================================
+// Render: Impressions alert (11-day flag)
+// =========================================================
+function renderImpressionsAlert(today) {
+  const alert = document.getElementById('impressions-alert');
+  const body = document.getElementById('impressions-alert-body');
+  const flagged = rosterRows(today).filter(r => r.days >= 0 && r.days <= 11);
+  if (flagged.length === 0) {
+    alert.classList.remove('show');
+    return;
+  }
+  alert.classList.add('show');
+  body.innerHTML = `
+    <strong>Increase impressions.</strong> The following client races are within 11 days of election day — keep impressions ramped through to election day.
+    <ul>
+      ${flagged.map(r => {
+        const label = r.days === 0 ? 'today' : r.days === 1 ? 'tomorrow' : `${r.days}d out`;
+        return `<li><span class="candidate-name">${escapeHtml(r.name)}</span> · ${escapeHtml(r.state)} ${escapeHtml(r.office)} · ${fmtDate(r.primary.date)} · ${label}</li>`;
+      }).join('')}
+    </ul>
+  `;
+}
+
+// =========================================================
+// Header readout
+// =========================================================
+function renderHeader(today) {
+  const upcoming = PRIMARIES.filter(p => daysUntil(p.date, today) >= 0).length;
+  const next = PRIMARIES.filter(p => daysUntil(p.date, today) >= 0)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  document.getElementById('header-subtitle').textContent =
+    `2026 cycle · ${upcoming} upcoming primaries${next ? ' · next: ' + next.state + ' (' + fmtDate(next.date) + ')' : ''}`;
+  document.getElementById('today-readout').textContent = fmtDateLong(today);
+}
+
+// =========================================================
+// Roster mutations
+// =========================================================
+async function addCandidatesFromInput() {
+  const raw = document.getElementById('roster-input').value;
+  const names = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  if (names.length === 0) {
+    toast('Paste at least one name first.', 'error');
+    return;
+  }
+  // dedupe against existing roster
+  const existing = new Set(roster.map(r => r.name.toLowerCase()));
+  const fresh = names.filter(n => !existing.has(n.toLowerCase()));
+  if (fresh.length === 0) {
+    toast('All those names are already on the roster.', 'error');
+    return;
+  }
+
+  // split into auto-matches vs needs-manual-assignment
+  const autoCandidates = [];
+  const manualQueue = [];
+  fresh.forEach(name => {
+    const p = findPrimaryByCandidate(name);
+    if (p) {
+      autoCandidates.push({
+        name,
+        state: p.state,
+        office: inferOfficeFromNotes(p, name),
+        district: '',
+        source: 'auto'
+      });
+    } else {
+      manualQueue.push(name);
+    }
+  });
+
+  // insert auto-matched ones into Supabase
+  let addedCount = 0;
+  for (const c of autoCandidates) {
+    const inserted = await insertCandidate(c);
+    if (inserted) addedCount++;
+  }
+
+  document.getElementById('roster-input').value = '';
+
+  if (addedCount > 0) {
+    await fetchRoster();
+    rerender();
+    toast(`Added ${addedCount} from NBC matches.`, 'success');
+  }
+
+  if (manualQueue.length > 0) {
+    runManualQueue(manualQueue);
+  }
+}
+
+async function removeCandidate(id) {
+  const ok = await deleteCandidate(id);
+  if (ok) {
+    await fetchRoster();
+    rerender();
+    toast('Removed.', 'success');
+  }
+}
+
+// =========================================================
+// Manual assignment modal queue
+// =========================================================
+let manualQueueState = null;
+
+function runManualQueue(queue) {
+  manualQueueState = { queue, idx: 0 };
+  showNextManual();
+}
+
+function showNextManual() {
+  if (!manualQueueState || manualQueueState.idx >= manualQueueState.queue.length) {
+    closeManual();
+    rerender();
+    return;
+  }
+  const name = manualQueueState.queue[manualQueueState.idx];
+  document.getElementById('manual-name').textContent = name;
+  document.getElementById('manual-progress').textContent =
+    manualQueueState.queue.length > 1
+      ? `${manualQueueState.idx + 1} of ${manualQueueState.queue.length}`
+      : '';
+
+  // populate state dropdown
+  const stateSel = document.getElementById('manual-state');
+  stateSel.innerHTML = `<option value="">— select state —</option>` +
+    ALL_STATES.map(s => `<option value="${s}">${s}</option>`).join('');
+  stateSel.value = '';
+  document.getElementById('manual-office').value = '';
+  document.getElementById('manual-district').value = '';
+  document.getElementById('manual-slack-url').value = '';
+  document.getElementById('district-field').style.display = 'none';
+
+  document.getElementById('manual-modal').classList.add('show');
+}
+
+function closeManual() {
+  document.getElementById('manual-modal').classList.remove('show');
+  manualQueueState = null;
+}
+
+document.getElementById('manual-office').addEventListener('change', (e) => {
+  document.getElementById('district-field').style.display =
+    e.target.value === 'U.S. House' ? 'block' : 'none';
+});
+
+document.getElementById('manual-save').addEventListener('click', async () => {
+  const state = document.getElementById('manual-state').value;
+  const office = document.getElementById('manual-office').value;
+  const district = document.getElementById('manual-district').value.trim();
+  if (!state || !office) {
+    toast('Pick a state and office.', 'error');
+    return;
+  }
+  if (!PRIMARIES.some(p => p.state === state)) {
+    toast(`No 2026 primary on file for ${state}.`, 'error');
+    return;
+  }
+  const name = manualQueueState.queue[manualQueueState.idx];
+  const slackUrl = document.getElementById('manual-slack-url').value.trim();
+  const inserted = await insertCandidate({
+    name,
+    state,
+    office,
+    district: office === 'U.S. House' ? district : '',
+    source: 'manual',
+    slack_webhook_url: slackUrl
+  });
+  if (inserted) {
+    await fetchRoster();
+    toast(`Added ${name}.`, 'success');
+    manualQueueState.idx++;
+    showNextManual();
+  }
+});
+
+document.getElementById('manual-skip').addEventListener('click', () => {
+  if (!manualQueueState) return;
+  manualQueueState.idx++;
+  showNextManual();
+});
+
+// =========================================================
+// Edit modal — change Race + Custom Notes for an existing roster row
+// =========================================================
+let editTargetId = null;
+
+function openEditModal(id, opts) {
+  const row = roster.find(r => r.id === id);
+  if (!row) return;
+  editTargetId = id;
+  document.getElementById('edit-name').textContent = row.name;
+
+  const stateSel = document.getElementById('edit-state');
+  stateSel.innerHTML = ALL_STATES.map(s => `<option value="${s}">${s}</option>`).join('');
+  stateSel.value = row.state;
+
+  document.getElementById('edit-office').value = row.office || '';
+  document.getElementById('edit-district').value = row.district || '';
+  document.getElementById('edit-district-field').style.display =
+    row.office === 'U.S. House' ? 'block' : 'none';
+  document.getElementById('edit-custom-notes').value = row.custom_notes || '';
+  document.getElementById('edit-runoff-date').value = row.runoff_date || '';
+  document.getElementById('edit-runoff-notes').value = row.runoff_notes || '';
+  document.getElementById('edit-slack-url').value = row.slack_webhook_url || '';
+
+  document.getElementById('edit-modal').classList.add('show');
+
+  if (opts && opts.focusSlack) {
+    setTimeout(() => {
+      const slackInput = document.getElementById('edit-slack-url');
+      if (slackInput) {
+        slackInput.focus();
+        slackInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+  }
+}
+
+document.getElementById('edit-office').addEventListener('change', (e) => {
+  document.getElementById('edit-district-field').style.display =
+    e.target.value === 'U.S. House' ? 'block' : 'none';
+});
+
+document.getElementById('edit-cancel').addEventListener('click', () => {
+  document.getElementById('edit-modal').classList.remove('show');
+  editTargetId = null;
+});
+
+document.getElementById('edit-save').addEventListener('click', async () => {
+  if (!editTargetId) return;
+  const state  = document.getElementById('edit-state').value;
+  const office = document.getElementById('edit-office').value;
+  const district = document.getElementById('edit-district').value.trim();
+  const customNotes = document.getElementById('edit-custom-notes').value;
+  const runoffDate = document.getElementById('edit-runoff-date').value;
+  const runoffNotes = document.getElementById('edit-runoff-notes').value.trim();
+  const slackUrl = document.getElementById('edit-slack-url').value.trim();
+  if (!state || !office) {
+    toast('State and office are required.', 'error');
+    return;
+  }
+  if (slackUrl && !slackUrl.startsWith('https://hooks.slack.com/')) {
+    toast('Slack URL should start with https://hooks.slack.com/', 'error');
+    return;
+  }
+  const ok = await updateCandidate(editTargetId, {
+    state,
+    office,
+    district: office === 'U.S. House' ? district : '',
+    custom_notes: customNotes,
+    runoff_date: runoffDate || null,
+    runoff_notes: runoffNotes,
+    slack_webhook_url: slackUrl
+  });
+  if (ok) {
+    await fetchRoster();
+    rerender();
+    document.getElementById('edit-modal').classList.remove('show');
+    editTargetId = null;
+    toast('Saved.', 'success');
+  }
+});
+
+
+// =========================================================
+// Utilities
+// =========================================================
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[ch]);
+}
+function cryptoId() {
+  return 'r_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+let toastTimer;
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2400);
+}
+
+// =========================================================
+// Wire up + initial render
+// =========================================================
+function rerender() {
+  const today = todayISO();
+  renderHeader(today);
+  renderImpressionsAlert(today);
+  renderRoster(today);
+  renderCalendar(today);
+  updateSyncStatus();
+}
+
+document.getElementById('add-btn').addEventListener('click', addCandidatesFromInput);
+document.getElementById('export-btn').addEventListener('click', exportRosterFile);
+document.getElementById('refresh-btn').addEventListener('click', refreshRoster);
+document.getElementById('roster-input').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') addCandidatesFromInput();
+});
+document.getElementById('show-past').addEventListener('change', () => rerender());
+document.getElementById('show-past-roster').addEventListener('change', () => rerender());
+
+(async function startup() {
+  // Render immediately with cached data so the page isn't blank
+  roster = loadCache();
+  rerender();
+  // Then connect to Supabase
+  if (initSupabase()) {
+    await fetchRoster();
+    rerender();
+    subscribeRealtime();
+  } else {
+    rerender();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+/* =====================================================================
+   AXM-toolkit — shared theme (single source of truth for the palette)
+   ---------------------------------------------------------------------
+   The shell AND every tool link this file. Define colors ONCE here.
+   Warm dark "Autofiller" palette: near-black bg + Anthropic orange accent.
+
+   Two naming conventions are aliased below so tools can keep their own
+   existing variable names untouched:
+     - Autofiller uses  --ink / --line / --panel ...
+     - Tracker uses     --text / --border / --bg-elev ...
+   Add a new tool? Reuse these names, or add new vars in this block.
+   ===================================================================== */
+:root{
+  /* ---- Core palette (canonical) ------------------------------------ */
+  --bg:#262624;            /* app background, warm near-black */
+  --panel:#30302E;         /* card surface */
+  --panel-2:#37373A;       /* inputs / nested surface */
+  --line:#3D3D3A;          /* borders */
+  --line-soft:#2F2F2D;     /* near-invisible separators */
+  --ink:#ECEBE7;           /* primary text */
+  --muted:#A7A5A0;         /* secondary text */
+  --faint:#77756F;         /* tertiary text */
+  --accent:#C96442;        /* Anthropic orange */
+  --accent-hover:#D97757;
+  --accent-ink:#ffffff;
+  --accent-tint:rgba(201,100,66,0.14);
+  --ok:#6E9F83;            --ok-tint:rgba(110,159,131,0.14);
+  --warn:#C99661;          --warn-tint:rgba(201,150,97,0.14);
+  --err:#C97064;           --err-tint:rgba(201,112,100,0.14);
+  --focus-ring:rgba(201,100,66,0.35);
+
+  /* ---- Primary Tracker aliases (GitHub-style names → warm palette) - */
+  --bg-elev:var(--panel);
+  --bg-elev-2:var(--panel-2);
+  --border:var(--line);
+  --border-strong:#4D4D49;
+  --text:var(--ink);
+  --text-dim:var(--muted);
+  --text-faint:var(--faint);
+  --accent-dim:#B5583A;    /* deeper orange for pressed/link-active */
+  /* urgency tiers — kept as distinct traffic-light steps, warmed to fit */
+  --red:#C97064;           --red-bg:rgba(201,112,100,0.14);
+  --orange:#C99661;        --orange-bg:rgba(201,150,97,0.14);
+  --yellow:#D9C06A;        --yellow-bg:rgba(217,192,106,0.14);
+  --neutral:#77756F;       --neutral-bg:rgba(119,117,111,0.14);
+  --green:#6E9F83;
+}
