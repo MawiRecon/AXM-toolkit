@@ -116,6 +116,27 @@
   .monday-row button.icon svg{width:16px;height:16px}
   .monday-hint{font-size:12px;color:var(--faint);margin-top:4px;display:flex;align-items:center;gap:6px}
   .monday-hint.ok{color:#A7D4BC}
+
+  /* ===== History picker ===== */
+  .history{margin-bottom:14px;border:1px solid var(--line-soft);border-radius:10px;background:var(--panel-2)}
+  .history summary{list-style:none;padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;user-select:none;color:var(--muted);font-size:12.5px}
+  .history summary::-webkit-details-marker{display:none}
+  .history summary::before{content:"›";display:inline-block;margin-right:8px;transition:transform .18s ease;color:var(--faint);font-size:14px;line-height:1}
+  .history[open] summary::before{transform:rotate(90deg)}
+  .history summary:hover{color:var(--ink)}
+  .history-title{flex:1}
+  .history-count{color:var(--faint);font-size:11.5px;background:var(--panel);padding:2px 8px;border-radius:999px;border:1px solid var(--line-soft)}
+  .history-body{padding:0 14px 14px}
+  .history-body input{margin-bottom:8px}
+  .history-list{max-height:240px;overflow-y:auto;border:1px solid var(--line-soft);border-radius:8px;background:var(--panel)}
+  .history-row{padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background .12s ease}
+  .history-row:last-child{border-bottom:0}
+  .history-row:hover{background:var(--panel-2)}
+  .history-row .r1{font-size:13px;color:var(--ink);font-weight:500;line-height:1.3}
+  .history-row .r2{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+  .history-row .r2 span::before{content:"·";margin-right:8px;color:var(--faint)}
+  .history-row .r2 span:first-child::before{content:"";margin:0}
+  .history-empty{padding:14px;text-align:center;color:var(--faint);font-size:12.5px}
   .or-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.1em}
   .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line-soft)}
 
@@ -146,6 +167,17 @@
 
 <div class="panel">
   <h2>1. Load submission</h2>
+
+  <details id="history_panel" class="history">
+    <summary>
+      <span class="history-title">Start from a previous IO</span>
+      <span class="history-count" id="history_count"></span>
+    </summary>
+    <div class="history-body">
+      <input id="history_search" type="text" placeholder="Search advertiser or campaign…" autocomplete="off">
+      <div id="history_list" class="history-list"></div>
+    </div>
+  </details>
 
   <div class="monday-row">
     <input id="monday_item" type="text" placeholder="Monday item ID (e.g. 11798352671)" inputmode="numeric" autocomplete="off">
@@ -346,10 +378,12 @@
   </div>
 </div>
 
-<!-- PDF.js for reading PDFs; html2canvas + jsPDF (loaded separately so their globals are reliably exposed) for generating the IO PDF; Tesseract.js lazy-loaded for OCR fallback -->
+<!-- PDF.js for reading PDFs; html2canvas + jsPDF (loaded separately so their globals are reliably exposed) for generating the IO PDF; Tesseract.js lazy-loaded for OCR fallback; supabase-js for io_history persistence -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
 <script>
 /* ==== Channel catalog: label -> {row, rate} on the auto_IO CPM Calc grid (rows 56-65) ==== */
 const CHANNELS = [
@@ -1834,6 +1868,179 @@ document.addEventListener('DOMContentLoaded', () => {
       const s = $("status"); s.style.display="block"; s.className="status ok"; s.textContent="Copied JSON to clipboard.";
     });
   };
+
+  /* ==== IO history (Supabase-backed) ===================================
+     Persists every generated IO to `io_history` so the next time we can
+     start from a previous one instead of a blank form. See schema.sql
+     for the table shape and trust model.
+     ==================================================================== */
+  const HISTORY_CFG = window.AX_IO_CONFIG || null;
+  const HISTORY_TABLE = 'io_history';
+  let HISTORY_CLIENT = null;
+  let HISTORY_CACHE = [];
+
+  function iohistoryInit(){
+    if(HISTORY_CLIENT || !HISTORY_CFG || !window.supabase) return HISTORY_CLIENT;
+    try {
+      HISTORY_CLIENT = window.supabase.createClient(
+        HISTORY_CFG.SUPABASE_URL, HISTORY_CFG.SUPABASE_ANON,
+        { auth: { persistSession: false } }
+      );
+    } catch(e){ console.warn('io_history init failed', e); }
+    return HISTORY_CLIENT;
+  }
+
+  /* Merge collectIoValues() + collectPipedriveDefaults() into the shape
+     stored in `fields`. Anything mutable in the form goes here so
+     hydrate() can round-trip. */
+  function iohistorySnapshot(){
+    const v = collectIoValues();
+    return {
+      advertiser:  v.advertiser, agency: v.agency, campaign: v.campaign,
+      channels:    v.channels,
+      budget:      v.budget, cpm: v.cpm,
+      titleDate:   v.titleDate, startDate: v.startDate, endDate: v.endDate,
+      flightNotes: v.flightNotes,
+      landing:     v.landing, geo: v.geo, tactics: v.tactics,
+      environment: v.environment, goal: v.goal, kpi: v.kpi, secondary: v.secondary,
+      mediaNotes:  v.mediaNotes,
+      contacts:    v.contacts,
+      pipedrive:   collectPipedriveDefaults(),
+    };
+  }
+
+  /* Upsert on monday_item_id when present (so re-fetching the same
+     Monday submission overwrites); insert otherwise. */
+  async function iohistorySave(){
+    const c = iohistoryInit(); if(!c) return null;
+    const snap = iohistorySnapshot();
+    if(!snap.advertiser && !snap.campaign) return null; // don't persist empties
+    const mondayId = ($("monday_item").value.trim().match(/(\d{6,})/) || [,''])[1] || null;
+    const v = collectIoValues();
+    const row = {
+      advertiser: snap.advertiser, agency: snap.agency, campaign: snap.campaign,
+      flight_start: snap.startDate || null, flight_end: snap.endDate || null,
+      io_title: v.ioTitle, monday_item_id: mondayId,
+      fields: snap, source: 'io-tool', updated_at: new Date().toISOString(),
+    };
+    try {
+      let res;
+      if(mondayId){
+        res = await c.from(HISTORY_TABLE).upsert(row, { onConflict: 'monday_item_id' }).select().single();
+      } else {
+        res = await c.from(HISTORY_TABLE).insert(row).select().single();
+      }
+      if(res.error) throw res.error;
+      iohistoryRefresh(); // pick up the new row in the picker
+      return res.data;
+    } catch(e){ console.warn('io_history save failed', e); return null; }
+  }
+
+  /* Fetch recent rows into HISTORY_CACHE and repaint the list. */
+  let HISTORY_ERROR = null;
+  async function iohistoryRefresh(){
+    const c = iohistoryInit(); if(!c) return;
+    try {
+      const res = await c.from(HISTORY_TABLE).select('*').order('created_at', { ascending: false }).limit(50);
+      if(res.error) throw res.error;
+      HISTORY_CACHE = res.data || [];
+      HISTORY_ERROR = null;
+      iohistoryRender($("history_search").value.trim());
+    } catch(e){
+      HISTORY_ERROR = e;
+      console.warn('io_history refresh failed', e);
+      iohistoryRender('');
+    }
+  }
+
+  function iohistoryRender(query){
+    const list = $("history_list"); const count = $("history_count");
+    if(!list) return;
+    const q = (query || '').toLowerCase();
+    const rows = q
+      ? HISTORY_CACHE.filter(r =>
+          (r.advertiser || '').toLowerCase().includes(q) ||
+          (r.campaign   || '').toLowerCase().includes(q) ||
+          (r.io_title   || '').toLowerCase().includes(q))
+      : HISTORY_CACHE;
+    count.textContent = HISTORY_CACHE.length ? `${rows.length}/${HISTORY_CACHE.length}` : '';
+    if(HISTORY_ERROR){
+      const msg = (HISTORY_ERROR.code === 'PGRST205')
+        ? 'Table <code>io_history</code> not found. Run <code>tools/io-autofiller/schema.sql</code> in the Supabase SQL editor.'
+        : `Couldn't load history: ${esc(HISTORY_ERROR.message || String(HISTORY_ERROR))}`;
+      list.innerHTML = `<div class="history-empty">${msg}</div>`;
+      return;
+    }
+    if(!HISTORY_CACHE.length){
+      list.innerHTML = '<div class="history-empty">No saved IOs yet — the first Generate & Download will start the history.</div>';
+      return;
+    }
+    if(!rows.length){
+      list.innerHTML = '<div class="history-empty">No matches.</div>';
+      return;
+    }
+    list.innerHTML = rows.slice(0, 20).map(r => {
+      const flight = [r.flight_start, r.flight_end].filter(Boolean).join(' → ') || '';
+      const created = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
+      const title = r.io_title || [r.agency, r.advertiser, r.campaign].filter(Boolean).join(' | ') || '(untitled)';
+      return `<div class="history-row" data-id="${esc(r.id)}">
+        <div class="r1">${esc(title)}</div>
+        <div class="r2">${flight ? `<span>${esc(flight)}</span>` : ''}<span>Saved ${esc(created)}</span></div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.history-row').forEach(el => {
+      el.onclick = () => {
+        const row = HISTORY_CACHE.find(r => r.id === el.dataset.id);
+        if(row) iohistoryHydrate(row);
+      };
+    });
+  }
+
+  /* Populate every editable field from a stored row's `fields` blob.
+     Uses the same setters the parser does so channel selects, Pipedrive
+     multi-selects, contacts, etc. all round-trip. */
+  function iohistoryHydrate(row){
+    const f = row.fields || {};
+    const set = (id, val) => { const el = $(id); if(el && val != null) el.value = val; };
+    const setMulti = (id, arr) => {
+      const el = $(id); if(!el || !Array.isArray(arr)) return;
+      Array.from(el.options).forEach(o => { o.selected = arr.includes(o.value); });
+    };
+    set('f_advertiser', f.advertiser); set('f_agency', f.agency); set('f_campaign', f.campaign);
+    set('f_titledate', f.titleDate);   set('f_start', f.startDate); set('f_end', f.endDate);
+    set('f_flightnotes', f.flightNotes);
+    set('f_budget', f.budget);         set('f_cpm', f.cpm);
+    if(Array.isArray(f.channels)) setChannelList(f.channels);
+    set('f_landing', f.landing);       set('f_geo', f.geo); set('f_tactics', f.tactics);
+    set('f_environment', f.environment); set('f_goal', f.goal); set('f_kpi', f.kpi);
+    set('f_secondary', f.secondary);   set('f_medianotes', f.mediaNotes);
+    const con = f.contacts || {};
+    set('f_primary', con.primary); set('f_email', con.email); set('f_billing', con.billing); set('f_attn', con.attn);
+    const pd = f.pipedrive || {};
+    set('pd_org_id', pd.orgId); set('pd_person_id', pd.personId);
+    set('pd_anything_new', pd.anythingNew); set('pd_email_proposal', pd.emailProposal);
+    setMulti('pd_primary_kpi', pd.primaryKpi); setMulti('pd_tactics', pd.tactics);
+    if(row.monday_item_id) $("monday_item").value = row.monday_item_id;
+    renderPreview();
+    const s = $("status"); if(s){ s.style.display='block'; s.className='status ok';
+      s.textContent = `Loaded from history: ${row.io_title || row.advertiser}`; }
+    const panel = $("history_panel"); if(panel) panel.open = false;
+  }
+
+  // Wrap generatePdf so a successful download also saves to history — the
+  // download stays authoritative; save is fire-and-forget.
+  const _generatePdf = generatePdf;
+  generatePdf = async function(){
+    const out = await _generatePdf.apply(this, arguments);
+    iohistorySave(); // non-blocking
+    return out;
+  };
+  $("download").onclick = generatePdf;
+
+  // Wire the picker
+  if($("history_search")) $("history_search").oninput = (e) => iohistoryRender(e.target.value);
+  iohistoryRefresh();
+
   renderPreview();
 });
 </script>
