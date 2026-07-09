@@ -23,6 +23,8 @@
 
   var MONTHS = ["January","February","March","April","May","June",
                 "July","August","September","October","November","December"];
+  var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun",
+                      "Jul","Aug","Sep","Oct","Nov","Dec"];
 
   function n(v) {                    // coerce to number or null
     if (v === null || v === undefined || v === "") return null;
@@ -82,10 +84,21 @@
   }
 
   /* Compose the finalized IO name used in column A:
-     "Entity | Advertiser | Campaign | Flight Start" (actual start date). */
+     "Entity | Advertiser | Campaign | Flight Start" — where Flight Start is
+     formatted as "MMM YYYY" (e.g. "Jul 2026") to match the historical naming
+     used in the source Sheet. Falls back to the raw ISO string if unparsable. */
   function composeName(row) {
-    var start = row.campaign_start || row.start || "";
-    var parts = [row.entity, row.advertiser, (row.campaign_label || row.campaign), start]
+    var startISO = row.campaign_start || row.start || "";
+    var startPretty = "";
+    var m = /^(\d{4})-(\d{2})-\d{2}/.exec(String(startISO));
+    if (m) {
+      var mi = parseInt(m[2], 10);
+      if (mi >= 1 && mi <= 12) startPretty = MONTHS_SHORT[mi - 1] + " " + m[1];
+      else startPretty = startISO;
+    } else {
+      startPretty = startISO;
+    }
+    var parts = [row.entity, row.advertiser, (row.campaign_label || row.campaign), startPretty]
       .map(function (p) { return (p == null ? "" : String(p).trim()); })
       .filter(function (p) { return p !== ""; });
     return parts.join(" | ");
