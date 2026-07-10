@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>L2 Audience Builder</title>
+<link rel="stylesheet" href="../../theme.css?v=2">
+<style>
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#3D3D3A;border-radius:999px;border:2px solid var(--bg)}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 22px 60px}
+
+  /* identity */
+  .idbar{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:16px;color:var(--faint);font-size:12.5px}
+  .idbar label{color:var(--faint)}
+  .idbar input{width:230px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card h2{margin:0 0 14px;font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .card h2 .sub{color:var(--faint);font-weight:400;font-size:12px;margin-left:8px}
+
+  label.fld{display:block;margin-bottom:12px}
+  label.fld > span{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;letter-spacing:.01em}
+  input,select{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:8px 10px;font:inherit;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+
+  /* geo repeater */
+  .geo-row{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;margin-bottom:8px}
+  .geo-row .del{width:34px;padding:0;background:transparent;border:1px solid var(--line);color:var(--faint);cursor:pointer;border-radius:8px}
+  .geo-row .del:hover{color:var(--err);border-color:var(--err)}
+  .linkbtn{background:transparent;border:0;color:var(--accent);cursor:pointer;font:inherit;padding:2px 0}
+  .linkbtn:hover{color:var(--accent-hover)}
+
+  .turnout-body{opacity:.45;pointer-events:none;transition:opacity .15s}
+  .turnout-body.on{opacity:1;pointer-events:auto}
+  .toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:10px}
+  .toggle input{width:auto}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    background:var(--accent);color:var(--accent-ink);border:0;border-radius:9px;
+    padding:11px 16px;font:inherit;font-weight:600;cursor:pointer;width:100%;
+  }
+  .btn:hover{background:var(--accent-hover)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:500}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--border-strong);background:var(--panel-2)}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:8px}
+
+  /* live panel */
+  .live{margin-top:18px}
+  .stat{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .stat .num{font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+  .stat .lbl{color:var(--faint);font-size:12px}
+  .stream{
+    background:var(--bg);border:1px solid var(--line);border-radius:9px;
+    padding:10px 12px;max-height:200px;overflow:auto;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--muted);white-space:pre-wrap;
+  }
+  .stream .ts{color:var(--faint)}
+  .defn ul{margin:4px 0 4px 2px;padding-left:18px}
+  .defn li{margin:2px 0}
+  .defn .filter-field,.defn .ff{color:var(--muted)}
+  .defn .filter-value,.defn .fv{color:var(--ink)}
+
+  /* badges */
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;text-transform:capitalize}
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-pending{color:var(--faint);background:var(--neutral-bg)}
+  .b-claimed,.b-running{color:var(--warn);background:var(--warn-tint)}
+  .b-awaiting_login{color:var(--accent);background:var(--accent-tint)}
+  .b-done{color:var(--ok);background:var(--ok-tint)}
+  .b-error{color:var(--err);background:var(--err-tint)}
+
+  /* history */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{text-align:left;color:var(--faint);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:0 10px 8px;border-bottom:1px solid var(--line)}
+  tbody td{padding:10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tbody tr.head{cursor:pointer}
+  tbody tr.head:hover{background:var(--panel-2)}
+  td.name{font-weight:600}
+  td.size{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  td.owner{color:var(--muted)}
+  .detail-cell{background:var(--bg)}
+  .muted{color:var(--faint)}
+  .push-btn{font-size:12px;padding:6px 12px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--faint);cursor:default}
+  .push-btn.ready{color:var(--accent);border-color:rgba(201,100,66,0.45);background:var(--accent-tint);cursor:pointer;font-weight:600}
+  .push-btn.ready:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .push-btn:disabled{opacity:.7}
+  .empty{color:var(--faint);text-align:center;padding:26px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="idbar">
+    <label for="owner">You:</label>
+    <input id="owner" type="email" placeholder="you@email.com" autocomplete="email">
+  </div>
+
+  <div class="grid">
+    <!-- ------------------ BUILD FORM ------------------ -->
+    <div class="card">
+      <h2>Build an audience <span class="sub">L2 Datamapping</span></h2>
+
+      <label class="fld">
+        <span>Audience name / label</span>
+        <input id="name" placeholder="e.g. NV_CD4_RPV_2of4">
+      </label>
+
+      <div class="row2">
+        <label class="fld">
+          <span>State</span>
+          <select id="state"></select>
+        </label>
+        <label class="fld">
+          <span>Notification email <span class="muted">(for Nexxen)</span></span>
+          <input id="notify" type="email" placeholder="optional">
+        </label>
+      </div>
+
+      <div class="fld">
+        <span style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px">Geography</span>
+        <div id="geos"></div>
+        <button class="linkbtn" id="addGeo">+ Add geography</button>
+      </div>
+
+      <div class="row2">
+        <label class="fld">
+          <span>Party</span>
+          <select id="party">
+            <option value="R">Republican</option>
+            <option value="D">Democrat</option>
+            <option value="I">Independent</option>
+            <option value="N">Nonpartisan / Any</option>
+          </select>
+        </label>
+        <label class="fld">
+          <span>Voter type</span>
+          <select id="vtype">
+            <option value="primary">Primary voter</option>
+            <option value="general">General voter</option>
+            <option value="registered">Registered</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="toggle"><input type="checkbox" id="thOn"> <span>Add voting-history filter</span></label>
+      <div class="turnout-body" id="thBody">
+        <div class="row3">
+          <span class="muted">Voted in at least</span>
+          <input id="thMin" type="number" min="1" value="2" style="max-width:80px">
+          <span class="muted">of the last</span>
+        </div>
+        <div class="row3" style="margin-top:8px">
+          <input id="thWin" type="number" min="1" value="4" style="max-width:80px">
+          <span class="muted" id="thKind">primary elections</span>
+          <span></span>
+        </div>
+      </div>
+
+      <button class="btn" id="build" style="margin-top:6px">Build Audience</button>
+      <div class="hint" id="buildHint"></div>
+    </div>
+
+    <!-- ------------------ LIVE PANEL ------------------ -->
+    <div class="card">
+      <h2>Current build</h2>
+      <div id="liveEmpty" class="empty">Submit a build to watch it run here.</div>
+      <div id="live" class="live" hidden>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span id="liveBadge" class="badge b-pending">pending</span>
+          <span id="liveName" class="muted"></span>
+        </div>
+        <div id="liveResult" hidden>
+          <div class="stat"><span class="num" id="liveCount">—</span><span class="lbl">records &nbsp;·&nbsp; ID <b id="liveId">—</b></span></div>
+          <div class="defn" id="liveDefn"></div>
+          <button class="push-btn" id="pushBtn" disabled title="Nexxen push path not verified yet — coming soon">Push to Nexxen</button>
+        </div>
+        <div class="stream" id="liveStream"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------ HISTORY ------------------ -->
+  <div class="card" style="margin-top:18px">
+    <h2>Audience history <span class="sub" id="histCount"></span></h2>
+    <table>
+      <thead><tr>
+        <th style="width:130px">Created</th><th>Name</th><th style="width:60px">State</th>
+        <th style="width:150px">Owner</th><th style="width:110px">Status</th><th style="width:90px;text-align:right">Size</th>
+      </tr></thead>
+      <tbody id="histBody"></tbody>
+    </table>
+    <div id="histEmpty" class="empty">No audiences built yet.</div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  "use strict";
+  var CFG = window.AX_L2_CONFIG;
+  var db = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON);
+
+  var STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["DC","District of Columbia"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
+  var GEO_TYPES = [["CD","Congressional District"],["SD","State Senate District"],["HD","State House District"],["COUNTY","County"],["ZIP","ZIP Code"]];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  var fmt = function(n){ return (n==null||isNaN(n))?'—':Number(n).toLocaleString(); };
+
+  /* ---- identity (owner) persisted in localStorage ---- */
+  var owner = $('owner');
+  owner.value = localStorage.getItem('axm_l2_owner') || '';
+  owner.addEventListener('input', function(){ localStorage.setItem('axm_l2_owner', owner.value.trim()); validate(); });
+
+  /* ---- populate selects ---- */
+  STATES.forEach(function(s){ var o=document.createElement('option'); o.value=s[0]; o.textContent=s[1]+' ('+s[0]+')'; $('state').appendChild(o); });
+  $('state').value = 'NV';
+
+  /* ---- geo repeater ---- */
+  function geoRow(){
+    var div=document.createElement('div'); div.className='geo-row';
+    var sel=document.createElement('select');
+    GEO_TYPES.forEach(function(g){ var o=document.createElement('option'); o.value=g[0]; o.textContent=g[1]; sel.appendChild(o); });
+    var val=document.createElement('input'); val.placeholder='value (e.g. 4, Douglas, 89101)';
+    var del=document.createElement('button'); del.className='del'; del.textContent='×'; del.type='button';
+    del.onclick=function(){ div.remove(); };
+    div.appendChild(sel); div.appendChild(val); div.appendChild(del);
+    return div;
+  }
+  $('geos').appendChild(geoRow());
+  $('addGeo').onclick=function(){ $('geos').appendChild(geoRow()); };
+
+  /* ---- voting-history toggle ---- */
+  function syncTh(){ $('thBody').classList.toggle('on', $('thOn').checked); }
+  $('thOn').addEventListener('change', syncTh); syncTh();
+  $('vtype').addEventListener('change', function(){
+    var v=$('vtype').value; $('thKind').textContent=(v==='general'?'general':'primary')+' elections';
+  });
+
+  /* ---- build the AudienceSpec (mirrors src/parser.ts output) ---- */
+  function collectSpec(){
+    var state=$('state').value;
+    var party=$('party').value;
+    var voterType=$('vtype').value;
+    var geos=[];
+    $('geos').querySelectorAll('.geo-row').forEach(function(r){
+      var type=r.querySelector('select').value;
+      var value=r.querySelector('input').value.trim();
+      if(value) geos.push({type:type, value:value});
+    });
+    var turnout;
+    if($('thOn').checked){
+      var min=parseInt($('thMin').value,10), win=parseInt($('thWin').value,10);
+      var electionType=(voterType==='general')?'general':'primary';
+      turnout={min:min, window:win, atLeast:true, electionType:electionType};
+    }
+    var raw=[party+ (voterType==='primary'?'P':voterType==='general'?'G':'')+'V',
+             turnout?(turnout.min+'/'+turnout.window+'+'):'',
+             'in', geos.map(function(g){return g.type+g.value;}).join(', '), state]
+             .filter(Boolean).join(' ');
+    return {raw:raw, state:state, party:party, voterType:voterType, turnout:turnout, geos:geos, warnings:[]};
+  }
+
+  function validate(){
+    var ok = owner.value.trim() && $('state').value &&
+             $('geos').querySelector('.geo-row input') &&
+             collectSpec().geos.length>0;
+    $('build').disabled=!ok;
+    $('buildHint').textContent = !owner.value.trim() ? 'Set your email above so the right worker picks up the job.'
+      : (collectSpec().geos.length===0 ? 'Add at least one geography.' : '');
+    return ok;
+  }
+  ['input','change'].forEach(function(ev){ document.addEventListener(ev, validate); });
+  validate();
+
+  /* ---- data cache + push helpers ---- */
+  var activeId=null;
+  var allJobs=[];
+  var pushesByBuild={};   // source_job_id -> [push jobs, newest first]
+  function latestPush(buildId){ var l=pushesByBuild[buildId]; return (l&&l.length)?l[0]:null; }
+  function queuePush(buildJob){
+    return db.from('audience_jobs').insert({
+      owner: buildJob.owner, kind:'push', status:'pending',
+      audience_name: buildJob.audience_name,
+      notification_email: buildJob.notification_email || null,
+      state: buildJob.state, source_job_id: buildJob.id
+    }).select().single();
+  }
+
+  /* ---- submit build ---- */
+  $('build').onclick=function(){
+    if(!validate()) return;
+    var spec=collectSpec();
+    var row={
+      owner: owner.value.trim(),
+      kind:'build', status:'pending',
+      audience_name: $('name').value.trim() || null,
+      notification_email: $('notify').value.trim() || null,
+      state: spec.state,
+      spec: spec
+    };
+    $('build').disabled=true; $('build').textContent='Queuing…';
+    db.from('audience_jobs').insert(row).select().single().then(function(r){
+      $('build').textContent='Build Audience'; validate();
+      if(r.error){ $('buildHint').textContent='Queue failed: '+r.error.message; return; }
+      activeId=r.data.id; renderLive(r.data);
+    });
+  };
+
+  /* ---- live panel ---- */
+  function renderDefn(el, job){
+    var d=job.result && job.result.definition;
+    if(Array.isArray(d) && d.length){
+      el.innerHTML = renderTree(d);
+    } else if(job.result && job.result.definitionText){
+      el.innerHTML = '<pre style="white-space:pre-wrap;margin:0;color:var(--muted)">'+esc(job.result.definitionText)+'</pre>';
+    } else { el.innerHTML=''; }
+  }
+  function renderTree(nodes){
+    return '<ul>'+nodes.map(function(n){
+      var lbl = n.field!=null
+        ? '<span class="ff">'+esc(n.field)+'</span>'+(n.value!=null?': <span class="fv">'+esc(n.value)+'</span>':'')
+        : '<span class="fv">'+esc(n.value!=null?n.value:n.label)+'</span>';
+      return '<li>'+lbl+(n.children&&n.children.length?renderTree(n.children):'')+'</li>';
+    }).join('')+'</ul>';
+  }
+  function renderStream(job){
+    var p=job.progress||[];
+    return p.map(function(e){
+      var t=(e.ts||'').replace('T',' ').replace(/\..*/,'').slice(11);
+      return '<div><span class="ts">'+esc(t)+'</span>  '+esc(e.msg)+'</div>';
+    }).join('') || '<span class="muted">Waiting for the worker to pick this up…</span>';
+  }
+  function renderLive(job){
+    $('liveEmpty').hidden=true; $('live').hidden=false;
+    var isPush=job.kind==='push';
+    var b=$('liveBadge'); b.className='badge b-'+job.status; b.textContent=(job.status||'').replace('_',' ');
+    $('liveName').textContent=(isPush?'Push · ':'')+(job.audience_name||'(unnamed)');
+    $('liveStream').innerHTML=renderStream(job);
+    $('liveStream').scrollTop=$('liveStream').scrollHeight;
+    var done=job.status==='done';
+    var stat=$('liveCount').parentElement;
+
+    if(isPush){
+      // push job: show delivery status, no size/definition
+      $('liveResult').hidden=false;
+      stat.style.display='none';
+      $('liveDefn').innerHTML = done ? '<span class="badge b-done">✓ Delivered to Nexxen</span>' : '';
+      $('pushBtn').style.display='none';
+      return;
+    }
+
+    // build job
+    stat.style.display='';
+    $('liveResult').hidden=!done;
+    if(!done) return;
+    var res=job.result||{};
+    $('liveCount').textContent=fmt(res.estimatedCount!=null?res.estimatedCount:res.total);
+    $('liveId').textContent=res.universeId||'—';
+    renderDefn($('liveDefn'), job);
+
+    // push control
+    var push=latestPush(job.id), pb=$('pushBtn');
+    pb.style.display='inline-block'; pb.onclick=null;
+    if(push && push.status==='done'){
+      pb.className='push-btn'; pb.disabled=true; pb.textContent='✓ Delivered to Nexxen';
+    } else if(push && push.status!=='error'){
+      pb.className='push-btn'; pb.disabled=true; pb.textContent='Pushing to Nexxen… ('+push.status.replace('_',' ')+')';
+    } else {
+      pb.className='push-btn ready'; pb.disabled=false;
+      pb.textContent=(push&&push.status==='error')?'Retry Push to Nexxen':'Push to Nexxen';
+      pb.onclick=function(){
+        pb.disabled=true; pb.textContent='Queuing push…';
+        queuePush(job).then(function(r){
+          if(r.error){ pb.disabled=false; pb.textContent='Push to Nexxen'; return; }
+          activeId=r.data.id; renderLive(r.data);
+        });
+      };
+    }
+  }
+
+  /* ---- history (build jobs only; push jobs attach to their build) ---- */
+  var expanded={};
+
+  function nexxenSection(job, push){
+    var box=document.createElement('div');
+    box.style.cssText='margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)';
+    box.innerHTML='<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Nexxen delivery</div>';
+    if(push && push.status==='done'){
+      box.insertAdjacentHTML('beforeend','<span class="badge b-done">✓ Delivered to Nexxen</span>');
+      return box;
+    }
+    if(push && push.status!=='error'){
+      box.insertAdjacentHTML('beforeend','<span class="badge b-'+push.status+'">'+esc(push.status.replace('_',' '))+'</span>');
+      var ps=document.createElement('div'); ps.className='stream'; ps.style.marginTop='8px'; ps.innerHTML=renderStream(push);
+      box.appendChild(ps);
+      return box;
+    }
+    if(push && push.status==='error'){
+      box.insertAdjacentHTML('beforeend','<div style="color:var(--err);margin-bottom:8px">Last push failed: '+esc(push.error||'')+'</div>');
+    }
+    var btn=document.createElement('button');
+    btn.className='push-btn ready';
+    btn.textContent=(push&&push.status==='error')?'Retry Push to Nexxen':'Push to Nexxen';
+    btn.onclick=function(e){
+      e.stopPropagation();
+      btn.disabled=true; btn.textContent='Queuing push…';
+      queuePush(job).then(function(r){
+        if(r.error){ btn.disabled=false; btn.textContent='Push to Nexxen'; }
+        // realtime refresh() will re-render with the in-flight push
+      });
+    };
+    box.appendChild(btn);
+    return box;
+  }
+
+  function detailRow(job, push){
+    var res=job.result||{};
+    var dtr=document.createElement('tr');
+    var td=document.createElement('td'); td.colSpan=6; td.className='detail-cell';
+    var wrap=document.createElement('div');
+    wrap.innerHTML='<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Definition (from L2)'+
+      (res.universeId?(' · ID '+esc(res.universeId)):'')+'</div>';
+    var defnDiv=document.createElement('div'); defnDiv.className='defn'; renderDefn(defnDiv, job);
+    wrap.appendChild(defnDiv);
+    if(job.error){ var er=document.createElement('div'); er.style.cssText='color:var(--err);margin-top:8px'; er.textContent=job.error; wrap.appendChild(er); }
+    var st=document.createElement('div'); st.className='stream'; st.style.marginTop='10px'; st.innerHTML=renderStream(job);
+    wrap.appendChild(st);
+    if(job.status==='done') wrap.appendChild(nexxenSection(job, push));
+    td.appendChild(wrap); dtr.appendChild(td);
+    return dtr;
+  }
+
+  function renderHistory(){
+    var builds=allJobs.filter(function(j){ return j.kind!=='push'; });
+    $('histCount').textContent=builds.length?('· '+builds.length):'';
+    var body=$('histBody'); body.innerHTML='';
+    $('histEmpty').hidden=builds.length>0;
+    builds.forEach(function(job){
+      var res=job.result||{};
+      var size=job.estimated_count!=null?job.estimated_count:(res.estimatedCount!=null?res.estimatedCount:res.total);
+      var created=(job.created_at||'').replace('T',' ').replace(/\..*/,'');
+      var push=latestPush(job.id);
+      var nexxen = job.status==='done'
+        ? (push ? '<span class="badge b-'+push.status+'" style="margin-left:8px">'+(push.status==='done'?'Nexxen ✓':esc(push.status.replace('_',' ')))+'</span>' : '')
+        : '';
+      var tr=document.createElement('tr'); tr.className='head';
+      tr.innerHTML=
+        '<td class="muted">'+esc(created.slice(0,16))+'</td>'+
+        '<td class="name">'+esc(job.audience_name||'(unnamed)')+'</td>'+
+        '<td>'+esc(job.state||'')+'</td>'+
+        '<td class="owner">'+esc(job.owner||'')+'</td>'+
+        '<td><span class="badge b-'+job.status+'">'+esc((job.status||'').replace('_',' '))+'</span>'+nexxen+'</td>'+
+        '<td class="size">'+fmt(size)+'</td>';
+      tr.onclick=function(){ expanded[job.id]=!expanded[job.id]; renderHistory(); };
+      body.appendChild(tr);
+      if(expanded[job.id]) body.appendChild(detailRow(job, push));
+    });
+  }
+
+  /* ---- load + realtime ---- */
+  function refresh(){
+    return db.from('audience_jobs').select('*').order('created_at',{ascending:false}).limit(300).then(function(r){
+      if(r.error){ $('histEmpty').hidden=false; $('histEmpty').textContent='Could not load history: '+r.error.message+' (has schema.sql been run?)'; return; }
+      allJobs=r.data||[];
+      pushesByBuild={};
+      allJobs.forEach(function(j){   // allJobs is newest-first, so lists stay newest-first
+        if(j.kind==='push' && j.source_job_id){ (pushesByBuild[j.source_job_id]=pushesByBuild[j.source_job_id]||[]).push(j); }
+      });
+      renderHistory();
+      if(activeId){ var a=allJobs.find(function(j){return j.id===activeId;}); if(a) renderLive(a); }
+    });
+  }
+
+  db.channel('audience_jobs_rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'audience_jobs'}, function(){ refresh(); })
+    .subscribe();
+
+  refresh();
+})();
+</script>
+</body>
+</html>

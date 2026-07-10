@@ -18,3 +18,6 @@ roster-backup-*.json
 # Ax Billing Tracker — real client billing data must never be committed
 tools/ax-billing/data/
 billing-backup-*.json
+
+# MCP servers live outside this repo (in C:\Users\mason\mcp-servers\)
+# because npm and Google Drive don't cooperate. See .mcp.json for the paths.

@@ -28,6 +28,14 @@ const TOOLS = [
     src: 'tools/ax-billing/index.html',
     // ledger / dollar-table
     icon: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v16"/><path d="M14 13h2"/><path d="M14 16h2"/></svg>'
+  },
+  {
+    id: 'l2-audience',
+    name: 'L2 Audience',
+    desc: 'Build voter audiences in L2',
+    src: 'tools/l2-audience/index.html',
+    // target / audience
+    icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>'
   }
 ];
 
