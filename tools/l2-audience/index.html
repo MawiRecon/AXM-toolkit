@@ -121,6 +121,10 @@
   .steps li{margin:6px 0}
   .steps code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);white-space:nowrap}
   .steps .note{color:var(--faint);font-size:12px}
+  .cmd{display:flex;align-items:stretch;margin:9px 0 2px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+  .cmd code{flex:1;min-width:0;padding:9px 11px;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);white-space:nowrap;overflow-x:auto}
+  .cmd button{border:0;border-left:1px solid var(--line);background:var(--panel-2);color:var(--muted);padding:0 14px;cursor:pointer;font:inherit;font-size:12px;font-weight:600}
+  .cmd button:hover{color:var(--ink);background:var(--panel)}
 </style>
 </head>
 <body>
@@ -129,7 +133,7 @@
   <div class="idbar">
     <label for="owner">You:</label>
     <input id="owner" type="email" placeholder="you@email.com" autocomplete="email">
-    <button class="setup-btn" id="setupBtn" type="button">⚙ Coworker setup</button>
+    <button class="setup-btn" id="setupBtn" type="button">⚙ Worker Setup</button>
   </div>
 
   <!-- ------------------ SETUP MODAL ------------------ -->
@@ -141,28 +145,33 @@
       </div>
       <div class="modal-body">
         <p class="muted" style="margin:0 0 14px">
-          Each person runs a small worker on their own machine (it drives a real
-          browser, which can't run in the cloud). Enter your email, download the
-          personalized setup, and follow the steps.
+          You run a small helper (a "worker") on your own computer that does the L2
+          work. You only set this up once — it takes a few minutes.
         </p>
         <label class="fld">
-          <span>Your email <span class="muted">(this is your routing key — the worker only runs jobs you build)</span></span>
+          <span><b>1.</b> Your email <span class="muted">(the worker only runs the audiences you build)</span></span>
           <input id="setupEmail" type="email" placeholder="you@grapeseedmedia.com" autocomplete="email">
         </label>
         <div class="dl-row">
-          <button class="btn" id="dlScript" type="button">⬇ Download setup script (.ps1)</button>
+          <button class="btn" id="dlScript" type="button">⬇ 2. Download setup file</button>
           <button class="btn ghost" id="dlEnv" type="button">.env only</button>
         </div>
-        <ol class="steps">
-          <li>Download the setup script above — it's personalized with your email.</li>
-          <li>In PowerShell, run it:
-            <br><code>powershell -ExecutionPolicy Bypass -File .\setup-l2-worker.ps1</code>
-            <br><span class="note">Clones the L2-MCP repo to <code>~\mcp-servers\l2-audience</code>, installs, writes your <code>.env</code>, builds, and starts the worker. You'll need access to the private repo — ask Mason. (Mac/Linux: run the same steps by hand; use the <b>.env only</b> download.)</span>
-          </li>
-          <li>On the first build, a real L2 login window pops up — sign in once; it's remembered.</li>
-          <li>Back here, set <b>You:</b> (top-right) to this same email, then build an audience — your worker picks it up.</li>
-          <li class="note">Keep the worker window running; if it's closed, builds just sit at “pending.”</li>
-        </ol>
+        <p class="note" style="margin:6px 0 0">This saves <code>setup-l2-worker.ps1</code> into your <b>Downloads</b> folder.</p>
+
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)">
+          <div style="font-weight:600;margin-bottom:2px">3. Run it in PowerShell</div>
+          <ol class="steps">
+            <li>Press the <b>Windows key</b> (bottom-left ⊞), type <b>PowerShell</b>, and press <b>Enter</b>. A blue window opens.</li>
+            <li>Copy the line below, click inside the blue window, paste it with <b>Ctrl+V</b> (or right-click), and press <b>Enter</b>:
+              <div class="cmd"><code id="runCmd">powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\setup-l2-worker.ps1"</code><button id="copyCmd" type="button">Copy</button></div>
+            </li>
+            <li>Let it run — it downloads and installs everything (a few minutes). If Windows asks permission to install something, click <b>Yes</b>/<b>Allow</b>.</li>
+            <li>The first time, a browser window opens to the L2 login page — <b>log in once</b>. It remembers you after that.</li>
+            <li><b>Leave the blue PowerShell window open</b> — that <i>is</i> your worker. If you close it, your builds just wait at "pending" until you open it again.</li>
+            <li>Come back to this page, set <b>You:</b> (top-right) to your email, and build an audience. Your worker picks it up.</li>
+          </ol>
+          <p class="note" style="margin:10px 0 0">On a Mac? Use <b>.env only</b>, then run the same steps in Terminal by hand: <code>git clone</code> the repo, <code>npm install</code>, <code>npx playwright install chromium</code>, drop the <code>.env</code> in, <code>npm run build</code>, <code>npm run worker</code>.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -363,6 +372,18 @@
   $('setupOverlay').addEventListener('click',function(ev){ if(ev.target===$('setupOverlay')) closeSetup(); });
   $('dlScript').onclick=function(){ syncOwnerFromSetup(); download('setup-l2-worker.ps1', genScript(setupEmail.value)); };
   $('dlEnv').onclick=function(){ syncOwnerFromSetup(); download('.env', genEnv(setupEmail.value)); };
+  function fallbackCopy(txt){
+    var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    ta.remove();
+  }
+  $('copyCmd').onclick=function(){
+    var txt=$('runCmd').textContent, b=$('copyCmd');
+    var done=function(){ b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy'; },1500); };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(txt); done(); }); }
+    else { fallbackCopy(txt); done(); }
+  };
 
   /* ---- populate selects ---- */
   STATES.forEach(function(s){ var o=document.createElement('option'); o.value=s[0]; o.textContent=s[1]+' ('+s[0]+')'; $('state').appendChild(o); });
