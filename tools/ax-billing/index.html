@@ -368,6 +368,14 @@ function render(){
 }
 
 /* ---------- inline editing ---------- */
+// A realtime change (another user's edit, or the echo of our own write) triggers
+// store.onChange -> reload() -> render(), which rebuilds the grid via innerHTML and
+// would destroy an <input> the user is mid-edit in. While an edit is open we defer
+// any incoming reload until the edit commits.
+let editingActive = false;
+let pendingReload = false;
+function requestReload(){ if(editingActive){ pendingReload = true; } else reload(); }
+
 function beginEdit(td){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
@@ -382,6 +390,7 @@ function beginEdit(td){
   const inputType = col.type==='date'?'date':(['money','omoney','pct','int'].includes(col.type)?'number':'text');
   const step = col.type==='pct'?'0.01':(col.type==='int'?'1':(['money','omoney'].includes(col.type)?'0.01':''));
   td.classList.add('editing');
+  editingActive = true;
   td.innerHTML = `<div class="cell ${['money','omoney','pct','int'].includes(col.type)?'num':''}">`
     + `<input type="${inputType}" ${step?`step="${step}"`:''} value="${cur==null?'':String(cur).replace(/"/g,'&quot;')}"></div>`;
   const inp = td.querySelector('input'); inp.focus(); if(inputType!=='date') inp.select();
@@ -389,6 +398,7 @@ function beginEdit(td){
   let done=false;
   const commit = save=>{
     if(done) return; done=true;
+    editingActive = false;
     if(save){
       let v = inp.value.trim();
       if(col.type==='omoney'){
@@ -402,7 +412,9 @@ function beginEdit(td){
       }
       persist(row);
     }
-    render();
+    // If a realtime change arrived while editing, apply it now instead of a plain
+    // render() so we don't drop another user's concurrent update.
+    if(pendingReload){ pendingReload = false; reload(); } else render();
   };
   inp.addEventListener('blur', ()=>commit(true));
   inp.addEventListener('keydown', e=>{
@@ -671,7 +683,7 @@ function boot(){
   store = window.makeStore();
   $('modeBadge').textContent = store.mode==='supabase'?'Cloud':'Local';
   $('modeBadge').className = 'badge '+(store.mode==='supabase'?'cloud':'local');
-  store.onChange(()=>reload());
+  store.onChange(()=>requestReload());
   Promise.resolve(store.needsAuth()).then(need=>{
     if(need){ showGate(); } else { afterAuth(); }
   });

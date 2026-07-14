@@ -16,8 +16,6 @@ Hosted via GitHub Pages. Open `index.html` directly for solo offline use, or vis
 ├── migration-001-edits-and-runoffs.sql # upgrade for an existing v1 project
 ├── migration-002-slack-webhook.sql     # adds per-client Slack webhook column
 ├── migration-003-per-client-runoffs.sql # moves runoffs to per-client roster columns
-├── data/
-│   └── roster.json                     # legacy seed file — no longer the source of truth
 └── README.md
 ```
 

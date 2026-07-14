@@ -13,8 +13,10 @@ AXM-toolkit/
 ├── theme.css    ← ONE source of truth for the warm-dark palette (shell + all tools)
 ├── shell.js     ← tool registry + hash routing
 └── tools/
-    ├── io-autofiller/    ← fills media Insertion Orders from WorkForms (PDF.js, jsPDF)
-    └── primary-tracker/  ← 2026 primary calendar w/ urgency alerts (Supabase-backed)
+    ├── io-autofiller/    ← fills media Insertion Orders from Monday; creates Pipedrive deals (PDF.js, jsPDF)
+    ├── primary-tracker/  ← 2026 primary calendar w/ urgency alerts + Slack reminders (Supabase-backed)
+    ├── ax-billing/       ← campaign billing & rebate ledger, spreadsheet-style (Supabase-backed)
+    └── l2-audience/      ← queues L2 voter-audience builds run by a local worker (Supabase-backed)
 ```
 
 ## Adding a new tool
@@ -43,7 +45,9 @@ Static — GitHub Pages from the repo root. Same as the original tools.
 
 ## Notes
 
-- `theme.css` aliases both tools' original variable names to the warm palette, so
-  each tool's stylesheet was left intact except for deleting its local `:root`.
-- The Primary Tracker's Supabase anon key (in `tools/primary-tracker/config.js`) is
-  safe to commit — access is governed by Row Level Security, not the key.
+- `theme.css` aliases each tool's original variable names to the warm palette, so
+  every tool's stylesheet was left intact except for deleting its local `:root`.
+- The Supabase anon keys committed in each tool's `config.js` are safe to expose —
+  access is governed by Row Level Security, not the key. Three of the four tools
+  (io-autofiller, ax-billing, l2-audience — and, after consolidation, primary-tracker)
+  share one Supabase project; each declares its own `config.js`.

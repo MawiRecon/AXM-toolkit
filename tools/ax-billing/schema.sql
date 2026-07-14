@@ -1,7 +1,8 @@
 -- Ax Billing Tracker — Supabase setup
 -- =====================================================================
--- Run once in your Supabase project's SQL Editor (same project as the
--- Primary Tracker is fine — this just adds one table).
+-- Run once in the shared AXM Supabase project's SQL Editor (project
+-- joojunnbkzebulolnliq — the same project used by the IO Autofiller,
+-- L2 Audience, and the Primary Tracker). This just adds one table.
 --
 -- IMPORTANT — this table is NOT public. Unlike the roster/events tables,
 -- RLS here grants access only to an AUTHENTICATED session. The public
@@ -12,11 +13,12 @@
 --   1. Authentication > Providers > Email: enable it, and DISABLE
 --      "Confirm email" (so the shared account can be used immediately).
 --   2. Authentication > Users > Add user (NOT "Invite" — invite emails a link):
---      create ONE shared account. The email is just a label; nothing is sent,
---      so a throwaway like billing@axmediateam.com is fine. Set its PASSWORD to
---      the team's shared PIN (use 6+ digits — this is the real key to the data,
---      and Supabase rate-limits guesses). That PIN is what the app's gate asks for.
---   3. In tools/ax-billing/config.js, SHARED_EMAIL must match the email you used
+--      create ONE shared account. The email is just a label; nothing is sent.
+--      It MUST match SHARED_EMAIL in tools/ax-billing/config.js — currently
+--      mason.widmer@grapeseedmedia.com. Set its PASSWORD to the team's shared
+--      PIN (use 6+ digits — this is the real key to the data, and Supabase
+--      rate-limits guesses). That PIN is what the app's gate asks for.
+--   3. If you change the account, update SHARED_EMAIL in config.js to match
 --      (BACKEND is already 'supabase').
 -- =====================================================================
 
@@ -74,24 +76,11 @@ revoke all on billing_rows from anon;
 -- keep everyone's grids in sync
 alter publication supabase_realtime add table billing_rows;
 
--- convenience: a view exposing the derived columns for anyone querying
--- Supabase directly (the app computes these client-side too).
--- security_invoker => the view runs with the CALLER's RLS, so it can never
--- become a backdoor around billing_rows' authenticated-only policy.
-create or replace view billing_rows_full with (security_invoker = on) as
-select
-  b.*,
-  (b.io_amount - b.actual_spend)                              as delta,
-  (b.rebate_pct * b.actual_spend)                             as rebate_value,
-  (b.actual_spend - (b.actual_spend * b.rebate_pct))          as sent_to_grapeseed,
-  (b.actual_spend * b.margin)                                 as gross_profit,
-  coalesce(b.backend_rebate_override,
-           (b.actual_spend * b.margin) / 2 - (b.rebate_pct * b.actual_spend)) as backend_rebate,
-  coalesce(b.difference_owed_override,
-           coalesce(b.backend_rebate_override,
-                    (b.actual_spend * b.margin) / 2 - (b.rebate_pct * b.actual_spend))
-           - b.previous_backend)                              as difference_owed
-from billing_rows b;
-
-grant select on billing_rows_full to authenticated;
-revoke all on billing_rows_full from anon;
+-- NOTE on derived columns (Delta, Rebate Value, Sent-to-Grapeseed, Gross Profit,
+-- Back-End Rebate, Difference Owed): these are computed CLIENT-SIDE in rebate.js,
+-- which is the single source of truth for the math. We deliberately do NOT keep a
+-- SQL view (previously `billing_rows_full`) that recomputes them — a second copy of
+-- the formulas silently drifts from rebate.js. If you ever need the derived values
+-- in a raw SQL query, compute them there against rebate.js rather than reviving a view.
+-- (If an old billing_rows_full view still exists in the project, drop it:
+--    drop view if exists billing_rows_full; )

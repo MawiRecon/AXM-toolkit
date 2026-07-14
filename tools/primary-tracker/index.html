@@ -1041,14 +1041,21 @@ function nextElectionForRow(row) {
   return { ...primary, kind: 'primary' };
 }
 
+let realtimeDebounce = null;
 function subscribeRealtime() {
   if (!sb) return;
   sb.channel('roster-changes')
     .on('postgres_changes',
         { event: '*', schema: 'public', table: 'roster' },
-        async () => {
-          await fetchRoster();
-          rerender();
+        () => {
+          // Coalesce bursts — and the echo of our own writes, which already did a
+          // fetchRoster()+rerender() — into a single refresh instead of one full
+          // refetch+rerender per change event.
+          clearTimeout(realtimeDebounce);
+          realtimeDebounce = setTimeout(async () => {
+            await fetchRoster();
+            rerender();
+          }, 200);
         })
     .subscribe();
 }
@@ -1149,16 +1156,26 @@ function tierBadgeHTML(daysOut) {
 // =========================================================
 // Candidate matching
 // =========================================================
-function findPrimaryByCandidate(name) {
+// Return every primary whose candidate list matches `name`. Exact full-name
+// matches win outright; only if there are none do we fall back to partial
+// (last-name / substring) matches, which may span several states.
+function matchPrimaries(name) {
   const n = name.trim().toLowerCase();
-  for (const p of PRIMARIES) {
-    if (p.candidates && p.candidates.some(c => c.toLowerCase() === n)) return p;
-  }
-  // partial match (last name only)
-  for (const p of PRIMARIES) {
-    if (p.candidates && p.candidates.some(c => c.toLowerCase().includes(n))) return p;
-  }
-  return null;
+  if (!n) return [];
+  const exact = PRIMARIES.filter(p =>
+    p.candidates && p.candidates.some(c => c.toLowerCase() === n));
+  if (exact.length) return exact;
+  return PRIMARIES.filter(p =>
+    p.candidates && p.candidates.some(c => c.toLowerCase().includes(n)));
+}
+
+// Auto-assign ONLY when the match is unambiguous (exactly one primary). Zero or
+// multiple matches (e.g. a common last name that hits several states) return null
+// so the caller routes the name to the manual-assignment picker instead of
+// silently guessing the first hit.
+function findPrimaryByCandidate(name) {
+  const m = matchPrimaries(name);
+  return m.length === 1 ? m[0] : null;
 }
 
 function inferOfficeFromNotes(primary, candidateName) {
@@ -1585,9 +1602,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[ch]);
-}
-function cryptoId() {
-  return 'r_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 let toastTimer;
 function toast(msg, kind) {

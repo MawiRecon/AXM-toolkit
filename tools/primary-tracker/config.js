@@ -5,8 +5,13 @@
 // access is controlled by Row Level Security policies, not the key.
 //
 // To rotate or swap projects, just edit these two strings.
+//
+// Points at the SHARED AXM Supabase project (joojunnbkzebulolnliq) — the same
+// project used by the IO Autofiller, L2 Audience, and Billing tools. The roster
+// table + its anon RLS policies live there (migrated from the old standalone
+// project mnjyhtqzgshyyyoedlhe on 2026-07-14).
 // ---------------------------------------------------------------
 window.SUPABASE_CONFIG = {
-  url:     'https://mnjyhtqzgshyyyoedlhe.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uanlodHF6Z3NoeXl5b2VkbGhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzg5ODYsImV4cCI6MjA5MzY1NDk4Nn0.Kpip4-Oe0b3A_A1QVRPRnZjXzX13_ERUGBNoaYP8GCU'
+  url:     'https://joojunnbkzebulolnliq.supabase.co',
+  anonKey: 'sb_publishable_dRnf7zrlychnOyJ_mli1ZA_BtJw3Aqh'
 };

@@ -1,11 +1,17 @@
 -- AxMedia Primary Tracker — Supabase setup (canonical fresh install)
 -- ---------------------------------------------------------------
--- Run this once in your Supabase project's SQL Editor for a brand-new
--- project. For upgrading an existing v1 schema, run migration-001-*.sql
--- instead.
+-- Run this once in the SHARED AXM Supabase project (joojunnbkzebulolnliq —
+-- the same project used by the IO Autofiller, L2 Audience, and Billing).
+-- The Primary Tracker was consolidated onto that project on 2026-07-14
+-- (it previously had its own standalone project). config.js already points
+-- at it.
 --
--- Creates the roster + events tables, opens public anon read/write,
--- and turns on realtime so multiple browsers stay in sync.
+-- Creates the roster table, opens public anon read/write, and turns on
+-- realtime so multiple browsers stay in sync.
+--
+-- NOTE: the old `events` table (migration-001) is DEAD — migration-003 moved
+-- runoffs to per-client roster columns (runoff_date / runoff_notes). It is not
+-- created here and has been dropped. Don't re-add it.
 -- ---------------------------------------------------------------
 
 -- Roster: clients we're tracking
@@ -32,22 +38,5 @@ create policy "Public update" on roster for update to anon using (true) with che
 
 alter publication supabase_realtime add table roster;
 
--- Events: user-added calendar entries (runoffs and future event kinds)
-create table if not exists events (
-  id          uuid primary key default gen_random_uuid(),
-  date        date not null,
-  state       text not null,
-  offices     text[] not null default '{}',
-  notes       text default '',
-  kind        text not null default 'runoff',
-  created_at  timestamptz default now()
-);
-
-alter table events enable row level security;
-
-create policy "Public read"   on events for select to anon using (true);
-create policy "Public insert" on events for insert to anon with check (true);
-create policy "Public delete" on events for delete to anon using (true);
-create policy "Public update" on events for update to anon using (true) with check (true);
-
-alter publication supabase_realtime add table events;
+-- (The `events` table that older versions created here is intentionally gone —
+--  see the header note. Runoffs live on roster.runoff_date / roster.runoff_notes.)
