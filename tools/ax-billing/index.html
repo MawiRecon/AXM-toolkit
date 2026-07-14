@@ -93,6 +93,7 @@
     overflow:hidden;text-overflow:ellipsis}
   .cell.num{justify-content:flex-end;font-variant-numeric:tabular-nums}
   .cell.derived{cursor:default;color:var(--muted);background:rgba(255,255,255,0.015)}
+  .cell.na{cursor:default;color:var(--muted);justify-content:center}
   .cell.neg{color:var(--err)}
   .cell.placeholder{color:var(--faint);font-style:italic}
   td.sticky,th.sticky{position:sticky;left:0;z-index:15;background:var(--bg)}
@@ -210,7 +211,7 @@ const COLS = [
   {k:'invoice_no',        lt:'X', label:'Invoice #',          type:'text',  w:100},
   {k:'bill_direct',       lt:'Y', label:'Bill Client Direct', type:'bool',  w:88},
   {k:'notes',             lt:'Z', label:'Notes',              type:'text',  w:220},
-  {k:'internal_note',     lt:'AA',label:'Sara/Jon Only',      type:'text',  w:150},
+  {k:'internal_note',     lt:'AA',label:'Sara/Jon Only',      type:'chkna', w:110},
 ];
 const STORED = COLS.filter(c=>!['dtext','dmoney'].includes(c.type)).map(c=>c.k)
   .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
@@ -322,6 +323,17 @@ function render(){
         h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${r[c.k]?'checked':''}></div></td>`;
         return;
       }
+      if(c.type==='chkna'){
+        const raw = r[c.k];
+        const blank = raw===''||raw==null;
+        if(blank && +r.year===2025){                              // empty 2025 rows → N/A
+          h += `<td data-k="${c.k}"><div class="cell na">N/A</div></td>`;
+          return;
+        }
+        const on = raw===true||raw==='True'||raw==='TRUE'||raw==='true'; // 'False'/blank → unchecked
+        h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${on?'checked':''}></div></td>`;
+        return;
+      }
       const derived = c.type==='dtext'||c.type==='dmoney';
       const num = ['money','dmoney','omoney','pct','int'].includes(c.type);
       const val = displayVal(c, r);
@@ -359,7 +371,7 @@ function render(){
 function beginEdit(td){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
-  if(['dtext','dmoney'].includes(col.type)) return;      // truly read-only
+  if(['dtext','dmoney','chkna'].includes(col.type)) return;  // read-only / checkbox-only
   const row = rows.find(r=>r.id===id); if(!row) return;
   if(td.classList.contains('editing')) return;
 
@@ -465,6 +477,11 @@ $('exportBtn').onclick = ()=>{
   rows.map(withDerived).forEach(r=>{
     lines.push(COLS.map(c=>{
       if(c.type==='bool') return r[c.k]?'TRUE':'FALSE';
+      if(c.type==='chkna'){
+        const raw=r[c.k], blank=raw===''||raw==null;
+        if(blank && +r.year===2025) return 'N/A';
+        return (raw===true||raw==='True'||raw==='TRUE'||raw==='true')?'TRUE':'FALSE';
+      }
       if(['money','dmoney','omoney'].includes(c.type)) return r[c.k]==null?'':r[c.k];
       if(c.type==='pct') return r[c.k]==null?'':r[c.k];
       return r[c.k]==null?'':r[c.k];
