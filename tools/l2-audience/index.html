@@ -281,7 +281,16 @@
 (function(){
   "use strict";
   var CFG = window.AX_L2_CONFIG;
-  var db = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON);
+  // This tool is anonymous by design (no login gate — see config.js). Disable
+  // session persistence so we NEVER adopt a sibling tool's Supabase Auth login
+  // (e.g. AX Billing signs into this same project on the same origin). Without
+  // this, supabase-js restores that shared localStorage session and sends an
+  // authenticated JWT, which the audience_jobs "to anon" RLS policies reject
+  // ("new row violates row-level security policy"). persistSession:false keeps
+  // every request on the anon key.
+  var db = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
 
   var STATES = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["DC","District of Columbia"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
   var GEO_TYPES = [["CD","Congressional District"],["SD","State Senate District"],["HD","State House District"],["COUNTY","County"],["ZIP","ZIP Code"]];
