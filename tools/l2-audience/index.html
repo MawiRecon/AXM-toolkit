@@ -174,7 +174,13 @@
             <li><b>Leave the blue PowerShell window open</b> — that <i>is</i> your worker. If you close it, your builds just wait at "pending" until you open it again.</li>
             <li>Come back to this page, set <b>You:</b> (top-right) to your email, and build an audience. Your worker picks it up.</li>
           </ol>
-          <p class="note" style="margin:10px 0 0">On a Mac? Use <b>.env only</b>, then run the same steps in Terminal by hand: <code>git clone</code> the repo, <code>npm install</code>, <code>npx playwright install chromium</code>, drop the <code>.env</code> in, <code>npm run build</code>, <code>npm run worker</code>.</p>
+          <p class="note" style="margin:10px 0 0">On a Mac? Use <b>.env only</b>, then run the same steps in Terminal by hand: <code>git clone</code> the repo, <code>npm install</code>, <code>npx playwright install chromium</code>, drop the <code>.env</code> in, <code>npm run build</code>. Then start it with the command below.</p>
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)">
+            <div style="font-weight:600;margin-bottom:2px">Start your worker</div>
+            <p class="note" style="margin:2px 0 7px">Once setup is done, this is the only command you ever run. Paste it into <span id="termName">Terminal</span> and press <b>Enter</b>, then leave the window open — that window <i>is</i> your worker. Run it again anytime your builds sit at "pending."</p>
+            <div class="cmd"><code id="workerCmd">cd ~/mcp-servers/l2-audience &amp;&amp; npm run worker</code><button id="copyWorker" type="button">Copy</button></div>
+          </div>
         </div>
       </div>
     </div>
@@ -393,12 +399,26 @@
     try{ document.execCommand('copy'); }catch(e){}
     ta.remove();
   }
-  $('copyCmd').onclick=function(){
-    var txt=$('runCmd').textContent, b=$('copyCmd');
-    var done=function(){ b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy'; },1500); };
-    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(txt); done(); }); }
-    else { fallbackCopy(txt); done(); }
-  };
+  function wireCopy(btnId, srcId){
+    var b=$(btnId); if(!b) return;
+    b.onclick=function(){
+      var txt=$(srcId).textContent;
+      var done=function(){ b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy'; },1500); };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(txt); done(); }); }
+      else { fallbackCopy(txt); done(); }
+    };
+  }
+  wireCopy('copyCmd','runCmd');
+  wireCopy('copyWorker','workerCmd');
+  // The everyday "start the worker" command differs by OS — the HTML defaults to
+  // the macOS/Linux form; swap to the PowerShell form on Windows.
+  (function(){
+    var isWin=/Win/i.test((navigator.platform||'')+' '+(navigator.userAgent||''));
+    if(isWin){
+      var wc=$('workerCmd'); if(wc) wc.textContent='cd $env:USERPROFILE\\mcp-servers\\l2-audience; npm run worker';
+      var tn=$('termName'); if(tn) tn.textContent='PowerShell';
+    }
+  })();
 
   /* ---- populate selects ---- */
   STATES.forEach(function(s){ var o=document.createElement('option'); o.value=s[0]; o.textContent=s[1]+' ('+s[0]+')'; $('state').appendChild(o); });
