@@ -158,7 +158,7 @@
 <header>
   <div>
     <h1>AxMedia IO Autofiller</h1>
-    <div class="sub">Drop a Monday submission PDF &rarr; review the mapping &rarr; download a populated IO.</div>
+    <div class="sub">Fetch from Monday, reuse a past IO, or back-fill from an old IO PDF &rarr; review &rarr; download.</div>
   </div>
   <div class="small">Outputs landscape letter PDF</div>
 </header>
@@ -190,20 +190,13 @@
 
   <div class="or-divider">or</div>
 
-  <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload submission PDF">
-    <button id="dzreset" class="reset" type="button" style="display:none">&times; reset</button>
-    <div id="dzbig" class="big">Drop the submission PDF here</div>
-    <div id="dzsmall" class="small">or <span class="link">choose a file</span> &nbsp;&middot;&nbsp; .pdf from Monday WorkForms</div>
-    <input type="file" id="fileinput" accept="application/pdf,.pdf" hidden>
-  </div>
+  <button id="oldio_open" class="sec" type="button" style="width:100%;text-align:center">Populate from an old IO&hellip;</button>
+  <div class="hint">Back-fill the form from a previously generated IO PDF &mdash; handy when remaking an IO with new dates. IOs made by this tool import exactly; older or signed ones are read via OCR.</div>
+
   <div class="actions">
-    <button id="loadexample" class="sec">Load example submission</button>
+    <button id="loadexample" class="sec">Load example</button>
     <button id="clearbtn" class="sec">Clear all</button>
   </div>
-  <details style="margin-top:10px"><summary>Or paste text instead (fallback)</summary>
-    <textarea id="paste" class="paste" placeholder="Paste text from a submission form. Parser looks for labels like 'Advertiser Name', 'Gross Budget', 'Flight Date', etc."></textarea>
-    <div class="actions"><button id="parse" class="sec">Parse pasted text</button></div>
-  </details>
 
   <div class="divider"></div>
 
@@ -374,6 +367,27 @@
       <button id="pm_clear" class="sec left" type="button">Clear saved</button>
       <button id="pm_cancel" class="sec" type="button">Cancel</button>
       <button id="pm_save" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Old-IO back-fill modal (shown by the "Populate from an old IO" button) -->
+<div id="oldio_modal" class="modal-scrim" style="display:none" role="dialog" aria-modal="true" aria-labelledby="oldio_title">
+  <div class="modal" style="max-width:520px">
+    <h3 id="oldio_title">Populate from an old IO</h3>
+    <div class="mdesc">
+      Drop a previously generated IO PDF to back-fill the form. IOs created by this tool import
+      exactly; older or PandaDoc-signed IOs are read via OCR (a few seconds). Review everything
+      before generating &mdash; OCR isn't perfect.
+    </div>
+    <div id="oldio_dz" class="dropzone" tabindex="0" role="button" aria-label="Upload old IO PDF">
+      <div id="oldio_big" class="big">Drop the IO PDF here</div>
+      <div id="oldio_small" class="small">or <span class="link">choose a file</span> &middot; .pdf</div>
+      <input type="file" id="oldio_fileinput" accept="application/pdf,.pdf" hidden>
+    </div>
+    <div id="oldio_status" class="status" style="display:none;margin-top:12px"></div>
+    <div class="modal-actions">
+      <button id="oldio_cancel" class="sec" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -819,6 +833,56 @@ function collectPipedriveDefaults(){
     primaryKpi:    multiVals('pd_primary_kpi'),
     tactics:       multiVals('pd_tactics'),
   };
+}
+
+/* ==== IO snapshot (single shape shared by history, PDF metadata, and back-fill) ====
+   buildIoSnapshot() serializes the current form; applyIoSnapshot() hydrates it back.
+   Used by: io_history persistence, the JSON payload embedded in generated IO PDFs, and
+   the "Populate from an old IO" import. Keeping one shape means all three round-trip. */
+function buildIoSnapshot(){
+  const v = collectIoValues();
+  return {
+    advertiser:  v.advertiser, agency: v.agency, campaign: v.campaign,
+    channels:    v.channels,
+    budget:      v.budget, cpm: v.cpm,
+    titleDate:   v.titleDate, startDate: v.startDate, endDate: v.endDate,
+    flightNotes: v.flightNotes,
+    landing:     v.landing, geo: v.geo, tactics: v.tactics,
+    environment: v.environment, goal: v.goal, kpi: v.kpi, secondary: v.secondary,
+    mediaNotes:  v.mediaNotes,
+    contacts:    v.contacts,
+    pipedrive:   (typeof collectPipedriveDefaults === 'function' ? collectPipedriveDefaults() : undefined),
+  };
+}
+
+/* Fill the form from a snapshot (full or partial). Returns the count of fields it set,
+   so callers can report "back-filled N fields". Missing keys are left untouched, so a
+   partial OCR snapshot keeps the form's existing defaults for anything it couldn't read. */
+function applyIoSnapshot(f){
+  if(!f) return 0;
+  let n = 0;
+  const set = (id, val) => { const el = $(id); if(el && val != null && val !== ''){ el.value = val; n++; } };
+  const setMulti = (id, arr) => {
+    const el = $(id); if(!el || !Array.isArray(arr)) return;
+    Array.from(el.options).forEach(o => { o.selected = arr.includes(o.value); });
+  };
+  set('f_advertiser', f.advertiser); set('f_agency', f.agency); set('f_campaign', f.campaign);
+  set('f_titledate', f.titleDate);   set('f_start', f.startDate); set('f_end', f.endDate);
+  set('f_flightnotes', f.flightNotes);
+  set('f_budget', f.budget);         set('f_cpm', f.cpm);
+  if(Array.isArray(f.channels) && f.channels.length){ setChannelList(f.channels); n++; }
+  set('f_landing', f.landing);       set('f_geo', f.geo); set('f_tactics', f.tactics);
+  set('f_environment', f.environment); set('f_goal', f.goal); set('f_kpi', f.kpi);
+  set('f_secondary', f.secondary);   set('f_medianotes', f.mediaNotes);
+  const con = f.contacts || {};
+  set('f_primary', con.primary); set('f_email', con.email); set('f_billing', con.billing); set('f_attn', con.attn);
+  const pd = f.pipedrive || {};
+  set('pd_org_id', pd.orgId); set('pd_person_id', pd.personId);
+  set('pd_anything_new', pd.anythingNew); set('pd_email_proposal', pd.emailProposal);
+  setMulti('pd_primary_kpi', pd.primaryKpi); setMulti('pd_tactics', pd.tactics);
+  autoSuggestCpmIfEmpty();
+  renderPreview();
+  return n;
 }
 
 /* Submission-form channel label -> our channel label */
@@ -1398,6 +1462,18 @@ async function generatePdf(){
     // Build the PDF with explicit image placement
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'in', format: 'letter', orientation: 'landscape', compress: true });
+
+    // Embed the field snapshot as JSON in the PDF Keywords metadata so this IO can later be
+    // re-imported losslessly via "Populate from an old IO" (no OCR needed). PandaDoc-signed
+    // copies strip this, which is why the import path still has an OCR fallback.
+    try {
+      pdf.setProperties({
+        title:    values.ioTitle || 'Insertion Order',
+        subject:  'AxMedia Insertion Order',
+        creator:  'AxMedia IO Autofiller',
+        keywords: 'AXIO1:' + JSON.stringify(buildIoSnapshot()),
+      });
+    } catch(e){ console.warn('IO metadata embed failed', e); }
     const pageW = pdf.internal.pageSize.getWidth();   // 11
     const pageH = pdf.internal.pageSize.getHeight();  // 8.5
     const margin = 0.25;
@@ -1516,7 +1592,7 @@ function loadScriptOnce(src){
   });
 }
 
-async function ocrPdf(pdf, statusEl){
+async function ocrPdf(pdf, statusEl, maxPages){
   // Load Tesseract.js on demand (cached after first use)
   statusEl.textContent = "Loading OCR engine (first time ~5MB)…";
   await loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js');
@@ -1535,8 +1611,9 @@ async function ocrPdf(pdf, statusEl){
   });
 
   let full = '';
-  for(let p = 1; p <= pdf.numPages; p++){
-    statusEl.textContent = `OCR page ${p}/${pdf.numPages}…`;
+  const lastPage = maxPages ? Math.min(maxPages, pdf.numPages) : pdf.numPages;
+  for(let p = 1; p <= lastPage; p++){
+    statusEl.textContent = `OCR page ${p}/${lastPage}…`;
     const page = await pdf.getPage(p);
     const vp = page.getViewport({scale: 2.0}); // 2x for better OCR accuracy
     const canvas = document.createElement('canvas');
@@ -1550,9 +1627,211 @@ async function ocrPdf(pdf, statusEl){
   return full;
 }
 
+/* ==== Old-IO back-fill ======================================================
+   Populate the form from a previously generated IO PDF. Two paths, tried in order:
+   1. Lossless — IOs generated by this tool embed the field snapshot as JSON in the PDF
+      Keywords metadata ("AXIO1:{...}"). We read it straight back with pdf.getMetadata().
+   2. OCR fallback — for older / PandaDoc-signed IOs the body is a flat image with no text
+      layer, so we OCR page 1 and parse the fixed IO layout (buildIoHtml) by its labels. */
+
+async function extractIoMetadata(pdf){
+  try {
+    const meta = await pdf.getMetadata();
+    const kw = meta && meta.info && meta.info.Keywords;
+    if(kw && typeof kw === 'string'){
+      const m = kw.match(/AXIO1:(\{[\s\S]*\})\s*$/);
+      if(m) return JSON.parse(m[1]);
+    }
+  } catch(e){ console.warn('IO metadata read failed', e); }
+  return null;
+}
+
+function mdyToIso(s){
+  const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!m) return null;
+  return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`; // M/D/YYYY -> YYYY-MM-DD
+}
+function ioNum(s){
+  if(s == null) return null;
+  const n = parseFloat(String(s).replace(/[^0-9.]/g, ''));
+  return isNaN(n) ? null : n;
+}
+/* Build a whitespace-tolerant regex for a channel label so OCR line-wraps / spacing don't
+   break the match ("Connected TV / OTT" may OCR as "Connected TV/OTT" across two lines). */
+function ioChanPattern(label){
+  let p = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex specials (not / or -)
+  p = p.replace(/\s*\/\s*/g, '\\s*/\\s*');              // flexible spacing around slashes
+  p = p.replace(/ +/g, '\\s+');                          // flexible spacing elsewhere
+  return new RegExp(p, 'i');
+}
+/* Distinctive fallback anchors — the channel column wraps and OCR interleaves it with the CPM/
+   flight columns, so the full label often isn't contiguous. Each anchor is a token unlikely to
+   collide with another channel (or the rest of the IO). Full-label match is tried first. */
+const IO_CHANNEL_ANCHORS = {
+  "Display Banners":    /display\s*banner/i,
+  "In-Banner Video":    /in[-\s]*banner/i,
+  "Native Display":     /native\s*display/i,
+  "Native Video":       /native\s*video/i,
+  "In-Stream Video":    /in[-\s]*stream/i,
+  "YouTube":            /youtube/i,
+  "Streaming Audio":    /streaming\s*audio/i,
+  "Connected TV / OTT": /connected\s*tv|\bott\b/i,
+  "pDOOH":              /\bp?dooh\b/i,
+  "Paid Social":        /paid\s*social/i,
+  "Paid Search":        /paid\s*search/i,
+};
+function matchIoChannels(flat){
+  const res = [];
+  for(const c of CHANNELS){
+    if(!c.label || c.label === '(none)') continue;
+    let idx = -1;
+    const full = flat.match(ioChanPattern(c.label));
+    if(full) idx = full.index;
+    const anc = IO_CHANNEL_ANCHORS[c.label];
+    if(anc){ const am = flat.match(anc); if(am && (idx < 0 || am.index < idx)) idx = am.index; }
+    if(idx >= 0) res.push({ label: c.label, idx });
+  }
+  res.sort((a, b) => a.idx - b.idx); // preserve the order they appear on the IO
+  return res.map(r => r.label);
+}
+
+/* Parse OCR'd text of a tool-generated IO back into a (best-effort) snapshot. The IO layout is
+   fixed, so each field is anchored on its printed label. Clean fields (title line, billing
+   anchors, landing URL, channel names) recover reliably; freeform cells are best-effort. */
+function parseIoPdf(rawText){
+  const snap = {};
+  const raw = String(rawText || '');
+  const lines = raw.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+  const flat = raw.replace(/\s+/g, ' ').trim();
+
+  // Capture text between a start label and the nearest of several end labels (on flat text).
+  const grab = (start, end) => {
+    const re = new RegExp(start + '\\s+([\\s\\S]*?)\\s*(?:' + end + ')', 'i');
+    const m = flat.match(re);
+    return m ? m[1].trim() : '';
+  };
+
+  // Title line: "Agency | Advertiser | Campaign | Mon YYYY" — the most reliable source.
+  const titleLine = lines.find(l => (l.match(/\|/g) || []).length >= 2);
+  let monYearIso = null;
+  if(titleLine){
+    const parts = titleLine.split('|').map(s => s.trim()).filter(Boolean);
+    if(parts.length && /^[A-Za-z]{3,9}\.?\s+\d{4}$/.test(parts[parts.length - 1])){
+      const my = parts.pop();
+      const d = new Date(my.replace('.', '') + ' 1');
+      if(!isNaN(d)) monYearIso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+    }
+    if(parts[0]) snap.agency = parts[0];
+    if(parts[1]) snap.advertiser = parts[1];
+    if(parts.length >= 3) snap.campaign = parts.slice(2).join(' | ');
+  }
+  // Fall back to the labelled contact cells if the title didn't yield them.
+  if(!snap.advertiser){ const v = grab('ADVERTISER', 'EMAIL|AGENCY|CAMPAIGN|BILLING'); if(v) snap.advertiser = v; }
+  if(!snap.agency){ const v = grab('AGENCY', 'BILLING|CAMPAIGN|EMAIL|NAME'); if(v) snap.agency = v; }
+  if(!snap.campaign){ const v = grab('CAMPAIGN', 'NAME/ATTN|INSERTION|Channels'); if(v) snap.campaign = v; }
+
+  // Contacts (best-effort; unset fields keep the form's Brad Mont defaults).
+  const primary = grab('PRIMARY CONTACT', 'CONTACT ADDRESS|EMAIL');
+  if(primary) snap.contacts = Object.assign(snap.contacts || {}, { primary });
+  const emailM = flat.match(/\bEMAIL\s+([^\s]+@[^\s]+)/i);
+  if(emailM) snap.contacts = Object.assign(snap.contacts || {}, { email: emailM[1] });
+  const attnM = flat.match(/NAME\/ATTN\s+([^\s]+@[^\s]+)/i);
+  if(attnM) snap.contacts = Object.assign(snap.contacts || {}, { attn: attnM[1] });
+
+  // Money + flight dates (billing-column anchors are the cleanest).
+  const cpmM = flat.match(/Blended\s+eCPM[:\s]*\$?\s*([\d,]+(?:\.\d+)?)/i);
+  if(cpmM) snap.cpm = ioNum(cpmM[1]);
+  const budM = flat.match(/Total\s+Budget[:\s]*\$?\s*([\d,]+(?:\.\d+)?)/i)
+            || flat.match(/Media\s+Budget[\s\S]*?\$\s*([\d,]+(?:\.\d+)?)/i);
+  if(budM) snap.budget = ioNum(budM[1]);
+  const startM = flat.match(/\bStart\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const endM   = flat.match(/\bEnd\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if(startM) snap.startDate = mdyToIso(startM[1]);
+  if(endM)   snap.endDate   = mdyToIso(endM[1]);
+  snap.titleDate = snap.startDate || monYearIso || null;
+
+  // Media Strategy block — Tesseract's reading order isn't fixed (it may read the table row-major
+  // or column-major), so each cell is captured only up to the NEAREST of any other known label,
+  // not an assumed next one. That keeps values from bleeding across cells in either order.
+  const BOUNDARIES = ['Landing\\s*Page','Primary\\s*Goal','\\bTactics\\b','KPI\\s*Measurement',
+    '\\bEnvironment\\b','Secondary\\s*Measurement','\\bGeo\\b','AUTHORIZATION','MEDIA\\s*NOTES','NOTES:'];
+  const grabField = (start) => grab(start, BOUNDARIES.filter(b => b !== start).join('|') + '|$');
+  const landing   = grabField('Landing\\s*Page');           if(landing) snap.landing = landing;
+  const goal      = grabField('Primary\\s*Goal');           if(goal) snap.goal = goal;
+  const tactics   = grabField('\\bTactics\\b');             if(tactics) snap.tactics = tactics;
+  const kpi       = grabField('KPI\\s*Measurement');        if(kpi) snap.kpi = kpi;
+  const env       = grabField('\\bEnvironment\\b');         if(env) snap.environment = env;
+  const secondary = grabField('Secondary\\s*Measurement');  if(secondary) snap.secondary = secondary;
+  const geo       = grabField('\\bGeo\\b');                 if(geo) snap.geo = geo;
+
+  // Channels — scan for canonical labels anywhere in the text (order preserved).
+  const chans = matchIoChannels(flat);
+  if(chans.length) snap.channels = chans;
+
+  return snap;
+}
+
+/* OCR just page 1 — a tool IO is a single page; signed copies append a certificate page. */
+async function ocrIoText(pdf, statusEl){
+  return await ocrPdf(pdf, statusEl, 1);
+}
+
+/* Visual state for the old-IO upload modal's dropzone. */
+function setOldIoDz(state, msg, sub){
+  const dz = $("oldio_dz"), big = $("oldio_big"), small = $("oldio_small");
+  if(!dz || !big || !small) return;
+  dz.classList.remove('over', 'loaded', 'working');
+  if(state === 'working'){
+    dz.classList.add('working');
+    big.innerHTML = `<span class="spin"></span>${msg || 'Processing…'}`;
+    small.textContent = sub || '';
+  } else if(state === 'loaded'){
+    dz.classList.add('loaded');
+    big.innerHTML = `<span class="check">&#10003;</span>${msg || 'Loaded'}`;
+    small.textContent = sub || '';
+  } else {
+    big.textContent = 'Drop the IO PDF here';
+    small.innerHTML = 'or <span class="link">choose a file</span> &middot; .pdf';
+  }
+}
+
+async function handleOldIoFile(file){
+  const s = $("oldio_status"); s.style.display = 'block'; s.className = 'status'; s.textContent = `Reading ${file.name}…`;
+  setOldIoDz('working', `Reading ${file.name}…`, 'Checking for embedded data');
+  try {
+    if(!/\.pdf$/i.test(file.name)) throw new Error("That's not a PDF.");
+    const pdf = await openPdf(file);
+
+    // 1. Lossless path — embedded JSON snapshot.
+    let snap = await extractIoMetadata(pdf);
+    let via = 'embedded data';
+
+    // 2. OCR fallback when there's no usable metadata.
+    if(!snap || !(snap.advertiser || snap.campaign || snap.channels)){
+      s.className = 'status'; s.textContent = 'No embedded data — running OCR (a few seconds)…';
+      setOldIoDz('working', 'Running OCR…', 'First run downloads ~5MB of language data');
+      const text = await ocrIoText(pdf, s);
+      snap = parseIoPdf(text);
+      via = 'OCR';
+    }
+
+    const n = applyIoSnapshot(snap);
+    if(!n) throw new Error("Couldn't recover any fields from this PDF. Is it an AxMedia IO?");
+    setOldIoDz('loaded', file.name, `Back-filled ${n} fields via ${via}`);
+    s.className = 'status ok'; s.textContent = `Back-filled ${n} fields via ${via}. Review & edit below.`;
+    const ms = $("status");
+    if(ms){ ms.style.display = 'block'; ms.className = 'status ok'; ms.textContent = `Populated from ${file.name} · ${n} fields via ${via}.`; }
+  } catch(err){
+    console.error(err);
+    setOldIoDz('idle');
+    s.className = 'status err'; s.textContent = 'Error: ' + err.message;
+  }
+}
+
 /* ==== Dropzone state transitions ==== */
 function dzState(state, msg, sub){
   const dz = $("dropzone"), big = $("dzbig"), small = $("dzsmall"), reset = $("dzreset");
+  if(!dz || !big || !small) return;  // submission dropzone was removed — Monday/example flows call this harmlessly
   dz.classList.remove('over','loaded','working');
   if(state === 'working'){
     dz.classList.add('working');
@@ -1577,109 +1856,51 @@ function dzState(state, msg, sub){
   }
 }
 
-async function handlePdfFile(file, forceOcr = false){
-  const s = $("status"); s.style.display="block"; s.className="status"; s.textContent = `Reading ${file.name}…`;
-  dzState('working', `Reading ${file.name}…`, 'Extracting text from PDF');
-  PDF_FILE_CACHE = file;
-  try{
-    if(!/\.pdf$/i.test(file.name)){ throw new Error("That's not a PDF."); }
-    const pdf = await openPdf(file);
-
-    let text = '';
-    let usedOcr = false;
-    if(!forceOcr){
-      text = await extractPdfText(pdf);
-    }
-
-    // Heuristic: if extraction yielded basically nothing OR matched no labels, fall back to OCR
-    const parsedDry = text ? parseSubmission(text) : {};
-    const labelsMatched = Object.keys(parsedDry).length;
-
-    if(forceOcr || text.trim().length < 40 || labelsMatched === 0){
-      const why = text.trim().length < 40
-        ? "No selectable text in PDF — running OCR (may take a few seconds)…"
-        : "Running OCR on PDF…";
-      s.className = "status"; s.textContent = why;
-      dzState('working', 'Running OCR…', 'First run downloads ~5MB of language data');
-      text = await ocrPdf(pdf, s);
-      usedOcr = true;
-    }
-
-    if($("paste")) $("paste").value = text;
-    const parsed = parseSubmission(text);
-    fillFromParsed(parsed);
-    const n = Object.keys(parsed).length;
-    const tag = usedOcr ? " · via OCR" : "";
-    if(n > 0){
-      dzState('loaded', file.name, `Parsed ${n} fields${tag} — review and edit below`);
-      s.className = "status ok"; s.textContent = `Loaded ${file.name} · parsed ${n} fields${tag}.`;
-    } else {
-      dzState('warn', file.name, `Loaded${tag} but couldn't match any known fields`);
-      s.className = "status warn";
-      s.innerHTML = `Couldn't find known labels in ${file.name}${tag}. `;
-      if(!usedOcr){
-        const btn = document.createElement('button');
-        btn.textContent = "Try OCR on this PDF"; btn.className = "sec";
-        btn.style.marginLeft = "8px";
-        btn.onclick = () => { if(PDF_FILE_CACHE) handlePdfFile(PDF_FILE_CACHE, true); };
-        s.appendChild(btn);
-      }
-    }
-  }catch(err){
-    console.error(err);
-    dzState('idle');
-    s.className="status err"; s.textContent = "Error: " + err.message;
-  }
-}
-
 /* ==== Wire up ==== */
 document.addEventListener('DOMContentLoaded', () => {
   buildChannelSelects();
 
-  // Drop zone + file picker
-  const dz = $("dropzone"), fi = $("fileinput"), dzr = $("dzreset");
-  if(dz && fi){
-    dz.addEventListener('click', (e) => { if(e.target.id === 'dzreset') return; fi.click(); });
+  /* ==== Old-IO back-fill modal wiring ==== */
+  const oldioModal = $("oldio_modal");
+  function openOldIo(){
+    setOldIoDz('idle');
+    const os = $("oldio_status"); if(os) os.style.display = 'none';
+    oldioModal.style.display = 'flex';
+  }
+  function closeOldIo(){ oldioModal.style.display = 'none'; }
+  $("oldio_open").onclick = openOldIo;
+  $("oldio_cancel").onclick = closeOldIo;
+  oldioModal.addEventListener('click', e => { if(e.target === oldioModal) closeOldIo(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && oldioModal.style.display !== 'none') closeOldIo(); });
+  (function(){
+    const dz = $("oldio_dz"), fi = $("oldio_fileinput");
+    if(!dz || !fi) return;
+    dz.addEventListener('click', () => fi.click());
     dz.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fi.click(); } });
-    dz.addEventListener('dragover', e => { e.preventDefault(); if(!dz.classList.contains('loaded')) dz.classList.add('over'); });
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('over'));
     dz.addEventListener('drop', async e => {
       e.preventDefault(); dz.classList.remove('over');
       const f = e.dataTransfer?.files?.[0];
-      if(f) await handlePdfFile(f);
+      if(f) await handleOldIoFile(f);
     });
     fi.addEventListener('change', async e => {
       const f = e.target.files?.[0];
-      if(f) await handlePdfFile(f);
+      if(f) await handleOldIoFile(f);
       fi.value = ''; // reset so same file can re-trigger
     });
-    if(dzr){
-      dzr.addEventListener('click', (e) => {
-        e.stopPropagation();
-        PDF_FILE_CACHE = null;
-        dzState('idle');
-        const s = $("status"); if(s) s.style.display = 'none';
-      });
-    }
-  }
+  })();
+
   ['f_advertiser','f_agency','f_campaign','f_titledate','f_start','f_end','f_flightnotes','f_budget','f_cpm',
    'f_landing','f_geo','f_tactics','f_environment','f_goal','f_kpi','f_secondary','f_medianotes',
    'f_primary','f_email','f_billing','f_attn'].forEach(id => {
     $(id).addEventListener('input', renderPreview);
   });
-  $("parse").onclick = () => {
-    const txt = $("paste").value;
-    if(!txt.trim()){ alert("Paste some submission text first."); return; }
-    const parsed = parseSubmission(txt);
-    fillFromParsed(parsed);
-    const s = $("status"); s.style.display="block"; s.className="status ok";
-    s.textContent = "Parsed " + Object.keys(parsed).length + " fields.";
-  };
   $("loadexample").onclick = () => {
-    $("paste").value = EXAMPLE;
     const parsed = parseSubmission(EXAMPLE);
     fillFromParsed(parsed);
-    dzState('loaded', 'Example submission', `Parsed ${Object.keys(parsed).length} fields from the bundled example`);
+    const s = $("status"); s.style.display="block"; s.className="status ok";
+    s.textContent = `Loaded example submission · parsed ${Object.keys(parsed).length} fields.`;
   };
   $("clearbtn").onclick = () => {
     document.querySelectorAll('input, textarea').forEach(el => {
@@ -1893,21 +2114,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Merge collectIoValues() + collectPipedriveDefaults() into the shape
      stored in `fields`. Anything mutable in the form goes here so
      hydrate() can round-trip. */
-  function iohistorySnapshot(){
-    const v = collectIoValues();
-    return {
-      advertiser:  v.advertiser, agency: v.agency, campaign: v.campaign,
-      channels:    v.channels,
-      budget:      v.budget, cpm: v.cpm,
-      titleDate:   v.titleDate, startDate: v.startDate, endDate: v.endDate,
-      flightNotes: v.flightNotes,
-      landing:     v.landing, geo: v.geo, tactics: v.tactics,
-      environment: v.environment, goal: v.goal, kpi: v.kpi, secondary: v.secondary,
-      mediaNotes:  v.mediaNotes,
-      contacts:    v.contacts,
-      pipedrive:   collectPipedriveDefaults(),
-    };
-  }
+  function iohistorySnapshot(){ return buildIoSnapshot(); }
 
   /* Upsert on monday_item_id when present (so re-fetching the same
      Monday submission overwrites); insert otherwise. */
@@ -2000,28 +2207,8 @@ document.addEventListener('DOMContentLoaded', () => {
      Uses the same setters the parser does so channel selects, Pipedrive
      multi-selects, contacts, etc. all round-trip. */
   function iohistoryHydrate(row){
-    const f = row.fields || {};
-    const set = (id, val) => { const el = $(id); if(el && val != null) el.value = val; };
-    const setMulti = (id, arr) => {
-      const el = $(id); if(!el || !Array.isArray(arr)) return;
-      Array.from(el.options).forEach(o => { o.selected = arr.includes(o.value); });
-    };
-    set('f_advertiser', f.advertiser); set('f_agency', f.agency); set('f_campaign', f.campaign);
-    set('f_titledate', f.titleDate);   set('f_start', f.startDate); set('f_end', f.endDate);
-    set('f_flightnotes', f.flightNotes);
-    set('f_budget', f.budget);         set('f_cpm', f.cpm);
-    if(Array.isArray(f.channels)) setChannelList(f.channels);
-    set('f_landing', f.landing);       set('f_geo', f.geo); set('f_tactics', f.tactics);
-    set('f_environment', f.environment); set('f_goal', f.goal); set('f_kpi', f.kpi);
-    set('f_secondary', f.secondary);   set('f_medianotes', f.mediaNotes);
-    const con = f.contacts || {};
-    set('f_primary', con.primary); set('f_email', con.email); set('f_billing', con.billing); set('f_attn', con.attn);
-    const pd = f.pipedrive || {};
-    set('pd_org_id', pd.orgId); set('pd_person_id', pd.personId);
-    set('pd_anything_new', pd.anythingNew); set('pd_email_proposal', pd.emailProposal);
-    setMulti('pd_primary_kpi', pd.primaryKpi); setMulti('pd_tactics', pd.tactics);
+    applyIoSnapshot(row.fields || {});
     if(row.monday_item_id) $("monday_item").value = row.monday_item_id;
-    renderPreview();
     const s = $("status"); if(s){ s.style.display='block'; s.className='status ok';
       s.textContent = `Loaded from history: ${row.io_title || row.advertiser}`; }
     const panel = $("history_panel"); if(panel) panel.open = false;
