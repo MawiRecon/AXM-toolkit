@@ -52,6 +52,33 @@
 
   .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
+  /* ===== Required "finalize" actions (Download IO · Send to Billing · Push to Monday) ===== */
+  .finalize{border:1px solid rgba(201,100,66,0.30);background:rgba(201,100,66,0.06);border-radius:12px;padding:11px 12px 13px}
+  .req-caption{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+  .req-caption-label{font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+  .req-progress{font-size:12px;font-weight:600;color:var(--faint);white-space:nowrap}
+  .req-progress.alldone{color:#57c98a}
+  .finalize .actions{margin-top:0}
+  /* Pending required button: attention ring + relative for the corner badge */
+  button.req{position:relative;box-shadow:0 0 0 1.5px rgba(201,100,66,0.55) inset}
+  /* Pulse the still-unclicked ones once the finalize flow has started */
+  @keyframes reqPulse{
+    0%{box-shadow:0 0 0 1.5px rgba(201,100,66,0.55) inset, 0 0 0 0 rgba(201,100,66,0.55)}
+    70%{box-shadow:0 0 0 1.5px rgba(201,100,66,0.55) inset, 0 0 0 9px rgba(201,100,66,0)}
+    100%{box-shadow:0 0 0 1.5px rgba(201,100,66,0.55) inset, 0 0 0 0 rgba(201,100,66,0)}
+  }
+  button.req.pulse{animation:reqPulse 1.45s ease-out infinite}
+  /* Done: turn green, drop the ring/pulse, show a check badge */
+  button.req.done{background:#2f9e6e;color:#fff;box-shadow:none;animation:none;padding-left:34px}
+  button.req.done:hover{background:#2a8f63}
+  button.req.done::before{
+    content:"✓";position:absolute;left:11px;top:50%;transform:translateY(-50%);
+    font-weight:800;font-size:13px;line-height:1;
+    background:rgba(255,255,255,0.22);width:18px;height:18px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+  }
+  @media(prefers-reduced-motion:reduce){ button.req.pulse{animation:none} }
+
   .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:28px 20px;text-align:center;background:rgba(255,255,255,0.015);transition:all .18s ease;cursor:pointer;position:relative}
   .dropzone:hover{border-color:#4D4D49;background:rgba(255,255,255,0.03)}
   .dropzone.over{border-color:var(--accent);background:var(--accent-tint)}
@@ -160,7 +187,6 @@
     <h1>AxMedia IO Autofiller</h1>
     <div class="sub">Fetch from Monday, reuse a past IO, or back-fill from an old IO PDF &rarr; review &rarr; download.</div>
   </div>
-  <div class="small">Outputs landscape letter PDF</div>
 </header>
 
 <div class="wrap">
@@ -211,7 +237,7 @@
   <div class="row"><label>Flight notes</label><textarea id="f_flightnotes"></textarea></div>
 
   <div class="row"><label>Gross budget ($)</label><input id="f_budget" type="number" step="0.01" placeholder="7490"></div>
-  <div class="row"><label>Blended CPM ($)</label><input id="f_cpm" type="number" step="0.01" placeholder="15"><span class="hint" style="grid-column:2"><span style="color:var(--accent);font-weight:600">Ax standard bCPM is $49</span><br>Single blended CPM across all channels. Click <b>Suggest CPM</b> to compute from the selected channel mix.</span></div>
+  <div class="row"><label>Blended CPM ($)</label><input id="f_cpm" type="number" step="0.01" placeholder="49"><span class="hint" style="grid-column:2"><span style="color:var(--accent);font-weight:600">Ax standard bCPM is $49</span> (pre-filled &mdash; edit if needed)<br>Single blended CPM across all channels. Click <b>Suggest CPM</b> to compute from the selected channel mix.</span></div>
   <div class="actions" style="margin-top:4px"><button id="suggestcpm" class="sec">Suggest CPM</button></div>
 
   <div class="row full"><label>Channels (up to 7)</label></div>
@@ -271,10 +297,18 @@
     </div>
   </details>
 
-  <div class="actions" style="margin-top:16px">
-    <button id="download">Generate &amp; download IO.pdf</button>
-    <button id="send_billing">Send to Billing</button>
-    <button id="send_contract">Push to Monday</button>
+  <div class="finalize" style="margin-top:16px">
+    <div class="req-caption">
+      <span class="req-caption-label">Finalize this IO &mdash; all three are required</span>
+      <span id="req_progress" class="req-progress"></span>
+    </div>
+    <div class="actions">
+      <button id="download" class="req">Generate &amp; download IO.pdf</button>
+      <button id="send_billing" class="req">Send to Billing</button>
+      <button id="send_contract" class="req">Push to Monday</button>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:10px">
     <button id="copyjson" class="sec">Copy mapping as JSON</button>
   </div>
   <div id="status" class="status" style="display:none"></div>
@@ -976,7 +1010,49 @@ function fillFromParsed(p){
 function fmtMoney(n){ if(n==null||isNaN(n)) return "—"; return "$" + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function fmtInt(n){ if(n==null||isNaN(n)) return "—"; return Math.round(n).toLocaleString(); }
 
+/* ==== Required "finalize" actions (Download IO · Send to Billing · Push to Monday) ====
+   All three MUST run for every finalized IO. Before any click the trio reads as required
+   (accent ring); once one is done the others pulse; each turns green with a ✓ when done.
+   Editing the IO after finalizing (outputs now stale) or loading a new submission clears the
+   checkmarks — a content signature comparison handles both cases. */
+const REQ_IDS = ['download','send_billing','send_contract'];
+const reqDone = new Set();
+let reqSig = null;
+function ioSignature(){
+  const v = collectIoValues();
+  return JSON.stringify([v.advertiser,v.agency,v.campaign,v.titleDate,v.startDate,v.endDate,
+    v.budget,v.cpm,v.channels,v.landing,v.geo,v.tactics,v.environment,v.kpi,v.secondary,v.mediaNotes]);
+}
+function updateReqUi(){
+  const n = reqDone.size, total = REQ_IDS.length;
+  REQ_IDS.forEach(id => {
+    const b = $(id); if(!b) return;
+    b.classList.toggle('done', reqDone.has(id));
+    b.classList.toggle('pulse', !reqDone.has(id) && n > 0 && n < total);
+  });
+  const p = $('req_progress');
+  if(p){
+    p.textContent = n === 0 ? '' : (n === total ? 'All 3 done ✓' : `${n} of ${total} done`);
+    p.classList.toggle('alldone', n === total);
+  }
+}
+function markReqDone(id){ reqDone.add(id); reqSig = ioSignature(); updateReqUi(); }
+function resetReq(){ reqDone.clear(); reqSig = null; updateReqUi(); }
+function maybeResetReqOnEdit(){ if(reqDone.size && ioSignature() !== reqSig) resetReq(); }
+
+/* ==== Initial defaults for a fresh IO ==== */
+function todayISO(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function applyInitialDefaults(){
+  if(!$("f_titledate").value) $("f_titledate").value = todayISO();
+  if(!$("f_cpm").value) $("f_cpm").value = '49';
+  if(getChannelList().length === 0) setChannelList(['In-Stream Video','Connected TV / OTT']);
+}
+
 function renderPreview(){
+  maybeResetReqOnEdit();
   const adv = $("f_advertiser").value.trim();
   const ag  = $("f_agency").value.trim();
   const cmp = $("f_campaign").value.trim();
@@ -1271,7 +1347,7 @@ function buildIoHtml(v){
        no surprise overrides. This is what actually styles the PDF. */
 const IO_RENDER_CSS = `
   html,body{margin:0;padding:0;background:#fff}
-  .io-render{width:10.5in;background:#fff;color:#000;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:10pt}
+  .io-render{width:10.8in;background:#fff;color:#000;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:10pt}
   .io-render .io-title{font-size:11pt;font-weight:bold;text-align:center;padding:6px 0 4px}
   .io-render .bar{background:#2B2B2B;color:#fff;font-weight:bold;font-size:10pt;text-align:center;padding:5px 0;letter-spacing:.04em}
   .io-render .split-bar{display:flex;width:100%}
@@ -1377,9 +1453,9 @@ async function generatePdf(){
     } catch(e){ console.warn('IO metadata embed failed', e); }
     const pageW = pdf.internal.pageSize.getWidth();   // 11
     const pageH = pdf.internal.pageSize.getHeight();  // 8.5
-    const margin = 0.25;
-    const maxW = pageW - margin*2;  // 10.5
-    const maxH = pageH - margin*2;  // 8.0
+    const margin = 0.1;             // tightened from 0.25" so the IO sits ~0.15"/~14px wider on each side
+    const maxW = pageW - margin*2;  // 10.8
+    const maxH = pageH - margin*2;  // 8.3
 
     // Scale image to fit within usable area, preserving aspect
     const imgAspect = canvas.width / canvas.height;
@@ -1396,6 +1472,7 @@ async function generatePdf(){
     pdf.save(fname);
 
     status.className="status ok"; status.textContent = `Downloaded ${fname}`;
+    markReqDone('download');
   }catch(err){
     console.error(err);
     status.className="status err"; status.textContent = "PDF error: " + err.message;
@@ -1760,6 +1837,8 @@ function dzState(state, msg, sub){
 /* ==== Wire up ==== */
 document.addEventListener('DOMContentLoaded', () => {
   buildChannelSelects();
+  applyInitialDefaults();   // title date = today, bCPM = 49, channels 1&2 = In-Stream Video + CTV
+  updateReqUi();
 
   /* ==== Old-IO back-fill modal wiring ==== */
   const oldioModal = $("oldio_modal");
@@ -1809,6 +1888,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if(el.type === 'date' || el.type === 'number' || el.type === 'text' || el.tagName === 'TEXTAREA') el.value = '';
     });
     setChannelList([]);
+    applyInitialDefaults();   // reset to the standard fresh-IO defaults
+    resetReq();               // clear the finalize checkmarks for a new IO
     PDF_FILE_CACHE = null;
     dzState('idle');
     const s = $("status"); if(s) s.style.display = 'none';
@@ -1846,6 +1927,7 @@ document.addEventListener('DOMContentLoaded', () => {
       s.style.display='block'; s.className='status ok';
       s.textContent = `Sent “${[v.agency, v.advertiser, v.campaign].filter(Boolean).join(' | ')}” to the Billing Tracker.`;
     }
+    markReqDone('send_billing');
   };
 
   /* ==== Monday integration wiring ==== */
@@ -1931,6 +2013,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dropHtml = dropNotes.length ? `<br><span style="opacity:.85">${dropNotes.join(' &middot; ')}</span>` : '';
       s.className="status ok";
       s.innerHTML = `Contracts item #${result.id} created in "New". <a href="${result.url}" target="_blank" rel="noopener">Open in Monday &rarr;</a>${dropHtml}`;
+      markReqDone('send_contract');
     } catch (err) {
       console.error(err);
       s.className="status err"; s.textContent = "Monday error: " + err.message;
