@@ -61,6 +61,10 @@
   .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:500}
   .btn.ghost:hover{color:var(--ink);border-color:var(--border-strong);background:var(--panel-2)}
   .hint{font-size:11.5px;color:var(--faint);margin-top:8px}
+  .wnote{font-size:11.5px;margin-top:8px;padding:7px 10px;border-radius:8px;display:none}
+  .wnote.show{display:block}
+  .wnote.warn{color:var(--warn);background:var(--warn-tint)}
+  .wnote.err{color:var(--err);background:var(--err-tint)}
 
   /* live panel */
   .live{margin-top:18px}
@@ -239,6 +243,7 @@
 
       <button class="btn" id="build" style="margin-top:6px">Build Audience</button>
       <div class="hint" id="buildHint"></div>
+      <div class="wnote" id="workerNote"></div>
     </div>
 
     <!-- ------------------ LIVE PANEL ------------------ -->
@@ -250,6 +255,7 @@
           <span id="liveBadge" class="badge b-pending">pending</span>
           <span id="liveName" class="muted"></span>
         </div>
+        <div class="wnote" id="liveWorkerNote" style="margin:0 0 10px"></div>
         <div id="liveResult" hidden>
           <div class="stat"><span class="num" id="liveCount">—</span><span class="lbl">records &nbsp;·&nbsp; ID <b id="liveId">—</b></span></div>
           <div class="defn" id="liveDefn"></div>
@@ -455,6 +461,59 @@
   ['input','change'].forEach(function(ev){ document.addEventListener(ev, validate); });
   validate();
 
+  /* ---- worker presence + version (worker_status, migration-002) ----
+     The worker upserts {owner, worker_id, version, last_seen} every ~30s.
+     • No row / stale last_seen  → "no worker online" (pending jobs will hang).
+     • version < REQUIRED_WORKER_VERSION → the worker's clone is missing fixes
+       (e.g. the 50-state hardening) — builds may fail or be silently wrong. */
+  var REQUIRED_WORKER_VERSION='0.8.0';
+  var WORKER_ONLINE_MS=90000; // ~3 missed 30s heartbeats
+  var workers={};             // owner -> worker_status row
+  var workerTableMissing=false;
+  function cmpVer(a,b){
+    var pa=String(a||'0').split('.'), pb=String(b||'0').split('.');
+    for(var i=0;i<Math.max(pa.length,pb.length);i++){
+      var x=parseInt(pa[i]||'0',10)||0, y=parseInt(pb[i]||'0',10)||0;
+      if(x!==y) return x<y?-1:1;
+    }
+    return 0;
+  }
+  /* Warning text for an owner's worker, or null when all good. `mine` switches
+     the phrasing between "your worker" and "their worker". */
+  function workerWarning(who, mine){
+    if(workerTableMissing || !who) return null;
+    var w=workers[(who||'').toLowerCase()];
+    var name=mine?'Your worker':('The worker for '+who);
+    if(!w || (Date.now()-new Date(w.last_seen).getTime())>WORKER_ONLINE_MS){
+      return {cls:'err', msg:'⚠ '+name+' is not running — builds will wait at "pending" until it starts. '+(mine?'See “Worker Setup” (top right).':'')};
+    }
+    if(cmpVer(w.version, REQUIRED_WORKER_VERSION)<0){
+      return {cls:'warn', msg:'⚠ '+name+' is outdated (v'+esc(w.version||'?')+' < v'+REQUIRED_WORKER_VERSION+') — update it: git pull && npm run build, then restart the worker.'};
+    }
+    return null;
+  }
+  function setNote(el, warning){
+    el.className='wnote'+(warning?(' show '+warning.cls):'');
+    el.textContent=warning?warning.msg:'';
+  }
+  function renderWorkerNotes(){
+    setNote($('workerNote'), workerWarning(owner.value.trim(), true));
+    var a=activeId && allJobs.find(function(j){return j.id===activeId;});
+    var live=(a && (a.status==='pending'||a.status==='claimed'||a.status==='running'||a.status==='awaiting_login'))
+      ? workerWarning(a.owner, (a.owner||'').toLowerCase()===owner.value.trim().toLowerCase())
+      : null;
+    setNote($('liveWorkerNote'), live);
+  }
+  function refreshWorkers(){
+    return db.from('worker_status').select('*').then(function(r){
+      if(r.error){ workerTableMissing=true; renderWorkerNotes(); return; } // pre-migration DB — no warnings
+      workerTableMissing=false;
+      workers={};
+      (r.data||[]).forEach(function(w){ workers[(w.owner||'').toLowerCase()]=w; });
+      renderWorkerNotes();
+    });
+  }
+
   /* ---- data cache + push helpers ---- */
   var activeId=null;
   var allJobs=[];
@@ -651,14 +710,24 @@
       });
       renderHistory();
       if(activeId){ var a=allJobs.find(function(j){return j.id===activeId;}); if(a) renderLive(a); }
+      renderWorkerNotes();
     });
   }
 
   db.channel('audience_jobs_rt')
     .on('postgres_changes',{event:'*',schema:'public',table:'audience_jobs'}, function(){ refresh(); })
     .subscribe();
+  db.channel('worker_status_rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'worker_status'}, function(){ refreshWorkers(); })
+    .subscribe();
+
+  // Presence is time-based ("stale after 90s"), so realtime alone isn't
+  // enough — a worker going OFFLINE emits no event. Poll as a fallback.
+  setInterval(refreshWorkers, 30000);
+  owner.addEventListener('input', renderWorkerNotes);
 
   refresh();
+  refreshWorkers();
 })();
 </script>
 </body>

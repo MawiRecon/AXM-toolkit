@@ -17,7 +17,16 @@
 --
 -- Safe to run more than once (drop-if-exists then recreate).
 -- Run in the Supabase SQL editor for project joojunnbkzebulolnliq.
+--
+-- NOTE: Supabase flags this as "destructive" because it contains DROP POLICY.
+-- DROP POLICY removes an access RULE, not data — no rows, columns, tables, or
+-- schemas are touched, and this script only affects the audience_jobs table
+-- (io_history / billing_rows are untouched). The change is purely additive:
+-- anon keeps its access and authenticated gains the same. Wrapped in a
+-- transaction so the swap is atomic (no instant where the table has no policy).
 -- =====================================================================
+
+begin;
 
 drop policy if exists "anon read"   on audience_jobs;
 drop policy if exists "anon insert" on audience_jobs;
@@ -30,3 +39,5 @@ create policy "open update" on audience_jobs for update to anon, authenticated u
 create policy "open delete" on audience_jobs for delete to anon, authenticated using (true);
 
 grant select, insert, update, delete on audience_jobs to anon, authenticated;
+
+commit;
