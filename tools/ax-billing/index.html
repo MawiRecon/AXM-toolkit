@@ -507,18 +507,58 @@ $('exportBtn').onclick = ()=>{
 };
 function csv(v){ v=v==null?'':String(v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 
-/* ---------- IO Tool handoff (same-origin localStorage inbox) ---------- */
+/* ---------- IO Tool handoff (same-origin localStorage inbox) ----------
+   The queue is the ONLY copy of a sent IO, so treat it as durable: never drop an
+   entry until the write it belongs to has actually succeeded.
+     - Signed out => don't drain at all. RLS is authenticated-only, so writing would
+       fail and (previously) took the queue down with it. Seeds wait for afterAuth().
+     - Failed write => keep the queue and say so. It retries on the next send or reload.
+     - Each seed carries a stable id used as the row's primary key, so a re-drain
+       upserts the same row instead of duplicating it. */
 const INBOX = 'ax_billing_inbox';
+let authed = false;        // set by afterAuth(); gates the drain
+let drainInFlight = false; // serialize drains so two can't race on the same seeds
+
+function inboxUuid(){
+  try { if(crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(e){}
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8); return v.toString(16);
+  });
+}
+function readInbox(){
+  try { const v = JSON.parse(localStorage.getItem(INBOX)||'[]'); return Array.isArray(v)?v:[]; }
+  catch(e){ return []; }
+}
+/* Remove only the entries we just wrote — anything queued while the write was in
+   flight stays put, instead of being wiped by a blanket removeItem(). */
+function removeDrained(batch){
+  const done = new Set(batch.map(b=>b.id));
+  const rest = readInbox().filter(it => !done.has(it.id));
+  if(rest.length) localStorage.setItem(INBOX, JSON.stringify(rest));
+  else localStorage.removeItem(INBOX);
+}
+
 function drainInbox(){
-  let inbox; try{ inbox=JSON.parse(localStorage.getItem(INBOX)||'[]'); }catch(e){ inbox=[]; }
-  if(!Array.isArray(inbox) || !inbox.length) return;
-  localStorage.removeItem(INBOX);
+  if(drainInFlight || !authed) return;
+  let inbox = readInbox();
+  if(!inbox.length) return;
+
+  // Back-fill ids on seeds queued by an older IO tool build, so removeDrained() can
+  // always identify what it wrote.
+  let mutated = false;
+  inbox.forEach(it => { if(!it.id){ it.id = inboxUuid(); mutated = true; } });
+  if(mutated) localStorage.setItem(INBOX, JSON.stringify(inbox));
+
+  const batch = inbox.slice();
+  drainInFlight = true;
+
   // Land new IO-Tool rows at the BOTTOM of the grid (like Excel's natural append),
   // not at sort_order:0 which would put them above all existing rows.
   const maxSort = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
-  const mapped = inbox.map((it,i)=>{
+  const mapped = batch.map((it,i)=>{
     const label = it.campaign || it.advertiser || '';
     const seed = newRow({
+      id: it.id,
       campaign_label:label, entity:(it.entity||'').trim(), advertiser:(it.advertiser||'').trim(),
       io_amount:it.io_amount!=null?+it.io_amount:null,
       campaign_start:it.start||null, campaign_end:it.end||null,
@@ -528,19 +568,27 @@ function drainInbox(){
     seed.campaign_name = Rebate.composeName(seed);
     return seed;
   });
-  store.bulkInsert(mapped).then(n=>{
+
+  store.bulkUpsert(mapped).then(n=>{
+    removeDrained(batch);            // only now is it safe to forget these
     toast(`${n} row(s) added from the IO Tool`, true);
-    reload().then(()=>{
+    return reload().then(()=>{
       // scroll to the newly-added rows and briefly flash-highlight them so the user
       // can't miss where the send landed
       const w = $('wrap'); if(w) w.scrollTop = w.scrollHeight;
       mapped.forEach(m=>{
-        const tr = document.querySelector(`#grid tbody tr[data-id="${m.id||''}"]`);
+        const tr = document.querySelector(`#grid tbody tr[data-id="${m.id}"]`);
         if(tr){ tr.style.transition='background .8s'; tr.style.background='var(--accent-tint)';
           setTimeout(()=>{ tr.style.background=''; }, 1400); }
       });
+      // Seeds that arrived mid-write are still queued — pick them up now.
+      if(readInbox().length) setTimeout(drainInbox, 0);
     });
-  });
+  }).catch(err=>{
+    // Queue is intact; the send is not lost. Next send or reload retries it.
+    console.error('drainInbox failed', err);
+    toast(`Couldn't add IO Tool row(s): ${err.message||err}. Still queued — retries on reload.`, false);
+  }).finally(()=>{ drainInFlight = false; });
 }
 window.addEventListener('storage', e=>{ if(e.key===INBOX) drainInbox(); });
 
@@ -689,6 +737,7 @@ function boot(){
   });
 }
 function afterAuth(){
+  authed = true;   // unblocks drainInbox(); until now seeds queue instead of being written+lost
   $('gate').classList.remove('show');
   if(store.mode==='supabase') $('signout').style.display='';
   reload().then(drainInbox);

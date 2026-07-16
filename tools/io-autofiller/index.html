@@ -922,7 +922,11 @@ function parseSubmission(rawTxt){
       let v = buf.join('\n').trim();
       v = v.replace(/about\s*:\s*blank[\s\d\/]{0,10}/gi,'').trim();
       v = v.replace(/\s*\d{1,2}\/\d{1,2}\s*$/,'').trim(); // trailing "1/3"
-      v = v.replace(/\s*[123]\s*\/?\s*\d\s*$/,'').trim(); // trailing "113" etc.
+      // NOTE: there used to be a looser /[123]\s*\/?\s*\d$/ strip here for page numbers
+      // that OCR merged into a value ("113"). With the slash optional it also matched the
+      // last two digits of a year — "…3rd May 2026" became "…3rd May 20" (i.e. year 2020),
+      // which then shipped to the Billing Tracker. It only ever existed for the scanned
+      // submission-PDF path, which no longer exists, so it's gone rather than tightened.
       out[currentLabel] = v;
     }
     buf = [];
@@ -1036,6 +1040,16 @@ function updateReqUi(){
     p.classList.toggle('alldone', n === total);
   }
 }
+/* Identity for the Billing handoff. lastBillingSend pins one id per distinct IO so
+   repeat sends of the same IO upsert one row rather than piling up duplicates. */
+function ioUuid(){
+  try { if(crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(e){}
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8); return v.toString(16);
+  });
+}
+let lastBillingSend = { sig:null, id:null };
+
 function markReqDone(id){ reqDone.add(id); reqSig = ioSignature(); updateReqUi(); }
 function resetReq(){ reqDone.clear(); reqSig = null; updateReqUi(); }
 function maybeResetReqOnEdit(){ if(reqDone.size && ioSignature() !== reqSig) resetReq(); }
@@ -1908,7 +1922,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if(s){ s.style.display='block'; s.className='status warn'; s.textContent='Nothing to send — fill in the advertiser/campaign first.'; }
       return;
     }
+    // Stable id -> becomes the billing row's primary key, so the tracker can upsert
+    // rather than insert. Re-sending an UNCHANGED IO (a double-click, or a retry)
+    // reuses the id and updates the same row instead of adding a duplicate; editing
+    // any field yields a new id and therefore a new row.
+    const sig = ioSignature();
+    if(lastBillingSend.sig !== sig) lastBillingSend = { sig, id: ioUuid() };
     const seed = {
+      id:         lastBillingSend.id,
       entity:     v.agency,
       advertiser: v.advertiser,
       campaign:   v.campaign,
@@ -1921,6 +1942,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let inbox;
     try { inbox = JSON.parse(localStorage.getItem('ax_billing_inbox') || '[]'); } catch(e){ inbox = []; }
     if(!Array.isArray(inbox)) inbox = [];
+    // De-dupe by id so a repeat send replaces its queued entry instead of stacking.
+    inbox = inbox.filter(it => it.id !== seed.id);
     inbox.push(seed);
     localStorage.setItem('ax_billing_inbox', JSON.stringify(inbox));
     if(s){

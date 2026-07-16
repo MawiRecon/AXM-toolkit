@@ -65,6 +65,25 @@
     this._write(rows);
     return Promise.resolve(list.length);
   };
+  /* Like bulkInsert, but keyed on id — re-running it with the same rows converges
+     instead of duplicating. Used by the IO Tool inbox drain, which may legitimately
+     retry a batch after a failed write. */
+  LocalStore.prototype.bulkUpsert = function (list) {
+    var rows = this._read();
+    list.forEach(function (row, i) {
+      row.id = row.id || uuid();
+      row.updated_at = new Date().toISOString();
+      var j = rows.findIndex(function (r) { return r.id === row.id; });
+      if (j >= 0) { rows[j] = Object.assign({}, rows[j], row); }
+      else {
+        row.created_at = row.created_at || new Date().toISOString();
+        if (row.sort_order == null) row.sort_order = rows.length + i;
+        rows.push(row);
+      }
+    });
+    this._write(rows);
+    return Promise.resolve(list.length);
+  };
   LocalStore.prototype.count = function () { return Promise.resolve(this._read().length); };
   LocalStore.prototype.onChange = function (f) { this._subs.push(f); };
 
@@ -102,6 +121,10 @@
   };
   SupabaseStore.prototype.bulkInsert = function (list) {
     return this.c.from('billing_rows').insert(list).select()
+      .then(function (r) { if (r.error) throw r.error; return (r.data || []).length; });
+  };
+  SupabaseStore.prototype.bulkUpsert = function (list) {
+    return this.c.from('billing_rows').upsert(list, { onConflict: 'id' }).select()
       .then(function (r) { if (r.error) throw r.error; return (r.data || []).length; });
   };
   SupabaseStore.prototype.count = function () {
