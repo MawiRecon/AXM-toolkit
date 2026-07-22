@@ -173,6 +173,9 @@
   .cell input,.cell select{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:0;margin:0}
   td.editing{box-shadow:inset 0 0 0 2px var(--accent);background:var(--panel-2)}
   td.editing .cell{padding:5px 8px}
+  /* keyboard "active cell" — a ring like a spreadsheet's selection, distinct from editing */
+  td.sel{box-shadow:inset 0 0 0 2px var(--accent);z-index:16}
+  td.sel.sticky{z-index:17}
   .chk{display:flex;align-items:center;justify-content:center;height:100%}
   .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
   td.act{border-right:0;white-space:nowrap;text-align:center}
@@ -585,6 +588,7 @@ function render(){
   h += '<td></td></tr></tfoot>';
 
   $('grid').innerHTML = h;
+  paintSelection();                 // restore the active-cell ring after the rebuild
 }
 
 /* ---------- inline editing ---------- */
@@ -596,12 +600,60 @@ let editingActive = false;
 let pendingReload = false;
 function requestReload(){ if(editingActive){ pendingReload = true; } else reload(); }
 
-function beginEdit(td){
+/* ---------- keyboard selection (spreadsheet-style) ----------
+   `sel` is the active cell {id, k}. Click or arrow to move it; type/Enter to edit.
+   Selection survives the innerHTML rebuild because paintSelection() re-applies the
+   ring from `sel` at the end of every render(). */
+let sel = null;
+function cellTd(id, k){
+  const tr = document.querySelector(`#grid tbody tr[data-id="${id}"]`);
+  return tr ? tr.querySelector(`td[data-k="${k}"]`) : null;
+}
+function paintSelection(){
+  document.querySelectorAll('#grid td.sel').forEach(td=>td.classList.remove('sel'));
+  if(!sel) return;
+  const td = cellTd(sel.id, sel.k); if(td) td.classList.add('sel');
+}
+function selectCell(id, k, scroll){
+  sel = {id, k}; paintSelection();
+  if(scroll){ const td=cellTd(id,k); if(td) td.scrollIntoView({block:'nearest', inline:'nearest'}); }
+}
+// the ordered rows/cols the arrows travel — exactly what's on screen (filtered, sorted, visible cols)
+function navOrder(){ return { rowIds: currentList().map(r=>r.id), colKeys: viewCols().map(c=>c.k) }; }
+function move(dr, dc){
+  const {rowIds, colKeys} = navOrder();
+  if(!rowIds.length || !colKeys.length) return;
+  let ri = sel ? rowIds.indexOf(sel.id) : -1;
+  let ci = sel ? colKeys.indexOf(sel.k) : -1;
+  if(ri<0) ri = 0; if(ci<0) ci = 0;
+  ri = Math.max(0, Math.min(rowIds.length-1, ri + dr));
+  ci = Math.max(0, Math.min(colKeys.length-1, ci + dc));
+  selectCell(rowIds[ri], colKeys[ci], true);
+}
+function isEditable(col){ return !['dtext','dmoney','ts','bool','chkna'].includes(col.type) && !col.ro; }
+function toggleCheckboxAt(s){
+  if(!requireEdit()) return;
+  const col = COLS.find(c=>c.k===s.k), row = rows.find(r=>r.id===s.id); if(!col||!row) return;
+  if(col.type==='chkna'){ const blank=row[s.k]===''||row[s.k]==null; if(blank && +row.year===2025) return; }  // N/A
+  const on = row[s.k]===true||row[s.k]==='True'||row[s.k]==='TRUE'||row[s.k]==='true';
+  row[s.k] = !on; persist(row, [s.k]); render();
+}
+// Enter / typing on the active cell: edit if editable, toggle if a checkbox, else no-op.
+function startEditAt(s, seedChar){
+  const col = COLS.find(c=>c.k===s.k); if(!col) return;
+  if(col.type==='bool'||col.type==='chkna'){ toggleCheckboxAt(s); return; }
+  if(!isEditable(col)) return;
+  if(!requireEdit()) return;
+  const td = cellTd(s.id, s.k); if(td) beginEdit(td, seedChar);
+}
+
+function beginEdit(td, seedChar){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
   if(['dtext','dmoney','ts','chkna'].includes(col.type) || col.ro) return;  // read-only / checkbox-only
   const row = rows.find(r=>r.id===id); if(!row) return;
   if(td.classList.contains('editing')) return;
+  sel = {id, k};                                    // editing implies selection
 
   let cur = row[k];
   if(col.type==='pct' && cur!=null && cur!=='') cur = +(cur*100);          // 0.15 -> 15
@@ -609,14 +661,25 @@ function beginEdit(td){
 
   const inputType = col.type==='date'?'date':(['money','omoney','pct','int'].includes(col.type)?'number':'text');
   const step = col.type==='pct'?'0.01':(col.type==='int'?'1':(['money','omoney'].includes(col.type)?'0.01':''));
+  // type-to-replace: the printable char that started the edit becomes the initial
+  // value (numbers accept only a numeric seed; dates ignore it and open the picker)
+  let initial = (cur==null?'':String(cur));
+  if(seedChar!=null && inputType!=='date'){
+    if(inputType==='number'){ if(/[0-9.\-]/.test(seedChar)) initial = seedChar; }
+    else initial = seedChar;
+  }
   td.classList.add('editing');
   editingActive = true;
   td.innerHTML = `<div class="cell ${['money','omoney','pct','int'].includes(col.type)?'num':''}">`
-    + `<input type="${inputType}" ${step?`step="${step}"`:''} value="${cur==null?'':String(cur).replace(/"/g,'&quot;')}"></div>`;
-  const inp = td.querySelector('input'); inp.focus(); if(inputType!=='date') inp.select();
+    + `<input type="${inputType}" ${step?`step="${step}"`:''} value="${initial.replace(/"/g,'&quot;')}"></div>`;
+  const inp = td.querySelector('input'); inp.focus();
+  if(inputType!=='date'){
+    if(seedChar!=null){ const n=inp.value.length; try{ inp.setSelectionRange(n,n); }catch(e){} }  // caret at end
+    else inp.select();
+  }
 
   let done=false;
-  const commit = save=>{
+  const commit = (save, navDir)=>{
     if(done) return; done=true;
     editingActive = false;
     if(save){
@@ -633,14 +696,19 @@ function beginEdit(td){
       // omoney edits the override column, not k (k itself is derived, not stored)
       persist(row, [col.type==='omoney' ? col.ov : k]);
     }
-    // If a realtime change arrived while editing, apply it now instead of a plain
-    // render() so we don't drop another user's concurrent update.
-    if(pendingReload){ pendingReload = false; reload(); } else render();
+    // rebuild the grid, then move (Enter/Tab) or just re-select the same cell (Escape/blur).
+    // If a realtime change arrived while editing, reload instead of a plain render so
+    // we don't drop another user's concurrent update.
+    const after = ()=>{ if(navDir) move(navDir.dr, navDir.dc); else selectCell(id, k, true); };
+    if(pendingReload){ pendingReload = false; reload().then(after); } else { render(); after(); }
   };
-  inp.addEventListener('blur', ()=>commit(true));
+  inp.addEventListener('blur', ()=>commit(true, null));
   inp.addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ e.preventDefault(); commit(true); }
-    else if(e.key==='Escape'){ e.preventDefault(); commit(false); }
+    // stopPropagation so the document-level nav handler doesn't also act on this key
+    // (e.g. Escape here cancels the edit; it must NOT also clear the selection)
+    if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); commit(true, {dr:1, dc:0}); }
+    else if(e.key==='Tab'){ e.preventDefault(); e.stopPropagation(); commit(true, {dr:0, dc:e.shiftKey?-1:1}); }
+    else if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); commit(false, null); }
   });
 }
 
@@ -677,14 +745,50 @@ $('wrap').addEventListener('click', e=>{
       store.update(id, {updated_by:actor}).then(()=>store.remove(id)).then(reload); }
     return; }
   const chk = e.target.closest('.chk input');
-  if(chk){ if(!requireEdit()){ chk.checked = !chk.checked; return; }   // revert the visual toggle
-    const tr=chk.closest('tr'); const k=chk.closest('td').dataset.k;
-    const row=rows.find(r=>r.id===tr.dataset.id); if(row){ row[k]=chk.checked; persist(row, [k]); } return; }
+  if(chk){ const cell=chk.closest('td'); const tr=chk.closest('tr'); selectCell(tr.dataset.id, cell.dataset.k, false);
+    if(!requireEdit()){ chk.checked = !chk.checked; return; }   // revert the visual toggle
+    const k=cell.dataset.k; const row=rows.find(r=>r.id===tr.dataset.id);
+    if(row){ row[k]=chk.checked; persist(row, [k]); } return; }
   const td = e.target.closest('td[data-k]');
-  if(td && !e.target.closest('.chk')){ if(requireEdit()) beginEdit(td); }
+  if(td && !e.target.closest('.chk')){
+    selectCell(td.closest('tr').dataset.id, td.dataset.k, false);   // click selects (works in view-only too)
+    if(requireEdit()) beginEdit(td);
+  }
 });
 $('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
 $('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; closeDropdown(); render(); };
+
+/* ---------- keyboard navigation (Google Sheets-style) ----------
+   Arrows move the active cell; Enter/type edits it; Enter commits + moves down,
+   Tab commits + moves right, Escape cancels. Space toggles a checkbox cell.
+   The cell editor handles its own keys (see beginEdit); this only runs when NOT
+   editing, and stays out of the way when you're typing in the search / name box. */
+document.addEventListener('keydown', e=>{
+  if(editingActive) return;                                   // the open editor owns its keys
+  if($('histModal').classList.contains('show')) return;       // modal open
+  if($('dd').classList.contains('show')) return;              // header dropdown open
+  const ae = document.activeElement;                          // don't hijack keys meant for other controls
+  if(ae && ae!==document.body && !$('wrap').contains(ae)) return;
+  if(!rows.length) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;              // leave shortcuts/OS combos alone
+  const key = e.key;
+  const nav = {ArrowDown:[1,0], ArrowUp:[-1,0], ArrowRight:[0,1], ArrowLeft:[0,-1]}[key];
+  if(nav){ if(!sel && ae!==document.body) return; e.preventDefault(); move(nav[0], nav[1]); return; }
+  if(!sel) return;                                            // remaining keys need an active cell
+  if(key==='Tab'){ e.preventDefault(); move(0, e.shiftKey?-1:1); return; }
+  if(key==='Enter' || key==='F2'){ e.preventDefault(); startEditAt(sel, null); return; }
+  if(key===' '){
+    const col = COLS.find(c=>c.k===sel.k);
+    if(col && (col.type==='bool'||col.type==='chkna')){ e.preventDefault(); toggleCheckboxAt(sel); }
+    return;
+  }
+  if(key==='Escape'){ sel=null; paintSelection(); return; }
+  // any other single printable character starts editing with that character
+  if(key.length===1){
+    const col = COLS.find(c=>c.k===sel.k);
+    if(col && isEditable(col)){ e.preventDefault(); startEditAt(sel, key); }
+  }
+});
 
 function newRow(seed){
   const max = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
