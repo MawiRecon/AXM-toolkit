@@ -57,7 +57,8 @@ create table if not exists billing_rows (
   sort_order                double precision default 0,
   created_at                timestamptz default now(),
   updated_at                timestamptz default now(),
-  updated_by                text                   -- self-attested name from the app's "editing as" gate
+  updated_by                text,                  -- self-attested name from the app's "editing as" gate
+  deleted_at                timestamptz            -- soft delete: non-null = in Trash, hidden from the grid
 );
 
 alter table billing_rows enable row level security;
@@ -129,6 +130,17 @@ begin
       values (OLD.id, 'delete', OLD.updated_by, OLD.campaign_name, to_jsonb(OLD), null);
     return OLD;
   elsif (tg_op = 'UPDATE') then
+    -- Soft delete / restore get their own action labels (the app deletes by setting
+    -- deleted_at, not by DELETEing the row).
+    if (OLD.deleted_at is null and NEW.deleted_at is not null) then
+      insert into billing_rows_history(row_id, action, actor, campaign, old_data, new_data)
+        values (NEW.id, 'delete', NEW.updated_by, NEW.campaign_name, to_jsonb(OLD), to_jsonb(NEW));
+      return NEW;
+    elsif (OLD.deleted_at is not null and NEW.deleted_at is null) then
+      insert into billing_rows_history(row_id, action, actor, campaign, old_data, new_data)
+        values (NEW.id, 'restore', NEW.updated_by, NEW.campaign_name, to_jsonb(OLD), to_jsonb(NEW));
+      return NEW;
+    end if;
     -- Ignore pure bookkeeping churn: if nothing but updated_at/updated_by changed,
     -- don't record a history row (e.g. the touch-before-delete, or a no-op commit).
     if (to_jsonb(OLD) - 'updated_at' - 'updated_by') = (to_jsonb(NEW) - 'updated_at' - 'updated_by') then
@@ -157,3 +169,18 @@ alter table billing_rows_history enable row level security;
 create policy "auth read history" on billing_rows_history for select to authenticated using (true);
 grant select on billing_rows_history to authenticated;
 revoke all on billing_rows_history from anon;
+
+
+-- =====================================================================
+-- SOFT DELETE  (added 2026-07)
+-- ---------------------------------------------------------------------
+-- Delete is reversible: the app sets deleted_at instead of removing the row.
+-- Deleted rows drop out of the grid and every total, but survive in the table
+-- (and in history) and can be restored from the Trash panel. Nothing is ever
+-- hard-destroyed through the UI — appropriate for a billing system of record.
+--
+-- ---- EXISTING DEPLOYMENTS: run this once (plus re-run the log_billing_change()
+--      function above, which now labels the soft delete/restore transitions). ---
+alter table billing_rows add column if not exists deleted_at timestamptz;
+-- speeds the "active rows only" read; partial index stays tiny since deleted rows are rare
+create index if not exists billing_rows_active_idx on billing_rows (deleted_at) where deleted_at is null;

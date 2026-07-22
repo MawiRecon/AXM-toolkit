@@ -113,6 +113,22 @@
     if (victim) this._logHist('delete', victim, null);
     return Promise.resolve();
   };
+  // Soft delete / restore — flip deleted_at, log the matching history action. Mirrors
+  // the Supabase trigger so local mode and offline use behave identically.
+  LocalStore.prototype._setDeleted = function (id, actor, when, action) {
+    var rows = this._read();
+    var i = rows.findIndex(function (r) { return r.id === id; });
+    if (i >= 0) {
+      var oldRow = rows[i];
+      var merged = Object.assign({}, rows[i],
+        { deleted_at: when, updated_by: actor, updated_at: new Date().toISOString() });
+      rows[i] = merged; this._write(rows);
+      this._logHist(action, oldRow, merged);
+    }
+    return Promise.resolve();
+  };
+  LocalStore.prototype.softDelete = function (id, actor) { return this._setDeleted(id, actor, new Date().toISOString(), 'delete'); };
+  LocalStore.prototype.restore    = function (id, actor) { return this._setDeleted(id, actor, null, 'restore'); };
   LocalStore.prototype.bulkInsert = function (list) {
     var rows = this._read();
     list.forEach(function (row, i) {
@@ -185,6 +201,14 @@
   SupabaseStore.prototype.remove = function (id) {
     return this.c.from('billing_rows').delete().eq('id', id)
       .then(function (r) { if (r.error) throw r.error; });
+  };
+  // Soft delete / restore are just partial updates; the trigger reads the deleted_at
+  // transition and logs 'delete' / 'restore' accordingly.
+  SupabaseStore.prototype.softDelete = function (id, actor) {
+    return this.update(id, { deleted_at: new Date().toISOString(), updated_by: actor });
+  };
+  SupabaseStore.prototype.restore = function (id, actor) {
+    return this.update(id, { deleted_at: null, updated_by: actor });
   };
   SupabaseStore.prototype.bulkInsert = function (list) {
     return this.c.from('billing_rows').insert(list).select()

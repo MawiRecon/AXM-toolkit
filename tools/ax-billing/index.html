@@ -72,6 +72,14 @@
   .hist-act.hist-insert{background:var(--ok-tint);color:var(--ok)}
   .hist-act.hist-update{background:var(--accent-tint);color:var(--accent)}
   .hist-act.hist-delete{background:var(--err-tint);color:var(--err)}
+  .hist-act.hist-restore{background:var(--ok-tint);color:var(--ok)}
+
+  /* Trash panel rows (reuses the .hist-modal shell) */
+  .trash-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+  .trash-item:last-child{border-bottom:0}
+  .trash-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .trash-meta{color:var(--faint);font-size:11.5px;white-space:nowrap}
+  .trash-item .restore{flex:0 0 auto;padding:5px 11px;font-size:12px}
   .hist-who{font-weight:600}
   .hist-when{color:var(--faint);font-size:12px;margin-left:auto}
   .hist-changes{display:flex;flex-direction:column;gap:3px}
@@ -210,6 +218,10 @@
     box-shadow:0 10px 30px rgba(0,0,0,.4)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.ok{border-color:rgba(110,159,131,.5)}
+  .toast{display:flex;align-items:center;gap:12px}
+  .toast .toast-act{padding:4px 11px;font-size:12px;font-weight:600;border-radius:6px;
+    background:var(--accent-tint);border-color:transparent;color:var(--accent)}
+  .toast .toast-act:hover{background:var(--accent);color:var(--accent-ink)}
   .empty{position:absolute;inset:var(--top,57px) 0 0 0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;color:var(--faint);gap:14px;text-align:center;padding:20px}
 </style>
@@ -226,6 +238,7 @@
   <button id="metaBtn" class="ghost" title="Show when each row was added and last changed">Timestamps</button>
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
   <button id="exportBtn" class="ghost">Export CSV</button>
+  <button id="trashBtn" class="ghost" title="View and restore deleted rows">Trash</button>
   <button id="signout" class="ghost" style="display:none">Sign out</button>
 </div>
 
@@ -284,6 +297,17 @@
       <button id="histClose" class="ghost">Close</button>
     </div>
     <div id="histBody" class="hist-body"></div>
+  </div>
+</div>
+
+<div id="trashModal" class="hist-modal">
+  <div class="hist-card">
+    <div class="hist-head">
+      <span class="h-t">Trash</span>
+      <span id="trashSub" class="h-s"></span>
+      <button id="trashClose" class="ghost">Close</button>
+    </div>
+    <div id="trashBody" class="hist-body"></div>
   </div>
 </div>
 
@@ -742,10 +766,13 @@ $('wrap').addEventListener('click', e=>{
   const del = e.target.closest('.del');
   if(del){ if(!requireEdit()) return;
     const id=del.closest('tr').dataset.id;
-    if(confirm('Delete this row?')){
-      // stamp who deleted it first, so the history 'delete' entry names the actor
-      // (not just whoever last edited the row). The touch-only update logs nothing.
-      store.update(id, {updated_by:actor}).then(()=>store.remove(id)).then(reload); }
+    const row=rows.find(r=>r.id===id);
+    const name=row?(row.campaign_name||row.campaign_label||'row'):'row';
+    // Soft delete — reversible. No confirm dialog; the Undo toast + Trash panel are the
+    // safety nets. The row drops out of the grid but survives in the table and history.
+    store.softDelete(id, actor).then(reload).then(()=>{
+      toastAction(`Moved to Trash: ${name}`, 'Undo', ()=>{ store.restore(id, actor).then(reload); });
+    }).catch(err=>toast('Delete failed: '+err.message, false));
     return; }
   const chk = e.target.closest('.chk input');
   if(chk){ const cell=chk.closest('td'); const tr=chk.closest('tr'); selectCell(tr.dataset.id, cell.dataset.k, false);
@@ -768,7 +795,8 @@ $('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; c
    editing, and stays out of the way when you're typing in the search / name box. */
 document.addEventListener('keydown', e=>{
   if(editingActive) return;                                   // the open editor owns its keys
-  if($('histModal').classList.contains('show')) return;       // modal open
+  if($('histModal').classList.contains('show')) return;       // history modal open
+  if($('trashModal').classList.contains('show')) return;      // trash modal open
   if($('dd').classList.contains('show')) return;              // header dropdown open
   const ae = document.activeElement;                          // don't hijack keys meant for other controls
   if(ae && ae!==document.body && !$('wrap').contains(ae)) return;
@@ -906,8 +934,9 @@ function renderHistory(entries){
     let label, body='';
     if(e.action==='insert'){ label='Created'; body=diffRows({}, e.new_data); }
     else if(e.action==='delete'){ label='Deleted'; }
+    else if(e.action==='restore'){ label='Restored'; }
     else { label='Edited'; body=diffRows(e.old_data, e.new_data); }
-    if(e.action!=='delete' && !body) body='<div class="hist-nofields">(no tracked fields changed)</div>';
+    if(e.action!=='delete' && e.action!=='restore' && !body) body='<div class="hist-nofields">(no tracked fields changed)</div>';
     h += `<div class="hist-item"><div class="hist-meta">`
        + `<span class="hist-act hist-${e.action}">${label}</span>`
        + `<span class="hist-who">${who}</span><span class="hist-when">${esc(when)}</span></div>`
@@ -918,6 +947,41 @@ function renderHistory(entries){
 function closeHistory(){ $('histModal').classList.remove('show'); }
 $('histClose').onclick = closeHistory;
 $('histModal').addEventListener('mousedown', e=>{ if(e.target.id==='histModal') closeHistory(); });
+
+/* ---------- Trash (soft-deleted rows) ---------- */
+function openTrash(){
+  $('trashSub').textContent = '';
+  $('trashBody').innerHTML = '<div class="hist-empty">Loading…</div>';
+  $('trashModal').classList.add('show');
+  // list() returns everything; the deleted ones are what Trash shows, newest-deleted first
+  store.list()
+    .then(all=>renderTrash(all.filter(r=>r.deleted_at).sort((a,b)=> a.deleted_at<b.deleted_at?1:-1)))
+    .catch(err=>{ $('trashBody').innerHTML = `<div class="hist-empty">Couldn't load Trash: ${esc(err.message||err)}</div>`; });
+}
+function renderTrash(deleted){
+  $('trashSub').textContent = deleted.length ? deleted.length+' row'+(deleted.length===1?'':'s') : '';
+  if(!deleted.length){ $('trashBody').innerHTML = '<div class="hist-empty">Trash is empty.</div>'; return; }
+  $('trashBody').innerHTML = deleted.map(r=>{
+    const name = r.campaign_name || r.campaign_label || '(unnamed row)';
+    const meta = 'Deleted' + (r.updated_by?(' by '+esc(r.updated_by)):'') + ' · ' + esc(tsFmt(r.deleted_at));
+    return `<div class="trash-item" data-id="${esc(r.id)}">`
+         + `<span class="trash-name">${esc(name)}</span>`
+         + `<span class="trash-meta">${meta}</span>`
+         + `<button class="restore">Restore</button></div>`;
+  }).join('');
+}
+$('trashBody').addEventListener('click', e=>{
+  const btn = e.target.closest('.restore'); if(!btn) return;
+  if(!requireEdit()) return;
+  const id = btn.closest('.trash-item').dataset.id;
+  store.restore(id, actor).then(reload).then(openTrash)   // refresh grid + trash list
+    .then(()=>toast('Restored', true))
+    .catch(err=>toast('Restore failed: '+err.message, false));
+});
+function closeTrash(){ $('trashModal').classList.remove('show'); }
+$('trashBtn').onclick = openTrash;
+$('trashClose').onclick = closeTrash;
+$('trashModal').addEventListener('mousedown', e=>{ if(e.target.id==='trashModal') closeTrash(); });
 
 /* ---------- audit columns toggle ---------- */
 function syncMetaBtn(){
@@ -1172,7 +1236,7 @@ document.addEventListener('mousedown', e=>{
   if(e.target.closest('#dd') || e.target.closest('th[data-sk]')) return;
   closeDropdown();
 });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeHistory(); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeHistory(); closeTrash(); } });
 
 /* ---------- column resize ---------- */
 $('wrap').addEventListener('pointerdown', e=>{
@@ -1210,9 +1274,24 @@ function toast(msg, ok){
   const t=$('toast'); t.textContent=msg; t.className='toast show'+(ok?' ok':'');
   clearTimeout(toastT); toastT=setTimeout(()=>t.className='toast',2600);
 }
+/* Toast with an inline action button (e.g. Undo). Stays up longer so there's time
+   to click it. */
+function toastAction(msg, label, fn){
+  const t=$('toast');
+  t.innerHTML = `<span></span><button class="toast-act"></button>`;
+  t.querySelector('span').textContent = msg;
+  const b = t.querySelector('.toast-act'); b.textContent = label;
+  b.onclick = ()=>{ clearTimeout(toastT); t.className='toast'; t.textContent=''; fn(); };
+  t.className='toast show';
+  clearTimeout(toastT); toastT=setTimeout(()=>{ t.className='toast'; t.textContent=''; }, 7000);
+}
 
-/* ---------- load ---------- */
-function reload(){ return store.list().then(r=>{ rows=r; render(); }); }
+/* ---------- load ----------
+   Soft-deleted rows (deleted_at set) are filtered out here, so the grid, totals,
+   export and every other consumer of `rows` see only active rows automatically.
+   Filtering client-side (rather than in the query) keeps the app working even
+   before the deleted_at column exists — undefined simply reads as not-deleted. */
+function reload(){ return store.list().then(r=>{ rows = r.filter(x=>!x.deleted_at); render(); }); }
 
 /* ---------- boot ---------- */
 function boot(){
