@@ -821,6 +821,92 @@ document.addEventListener('keydown', e=>{
   }
 });
 
+/* ---------- paste from Excel / Sheets ----------
+   With a cell selected (but not being edited), pasting a copied block writes it
+   into the grid starting at the active cell — tab-separated columns, newline rows,
+   exactly the TSV Excel/Sheets put on the clipboard. Fills EXISTING rows only
+   (never invents rows); non-editable/derived target columns are skipped so column
+   alignment is preserved. One history entry per affected row. */
+function parseDateToISO(s){
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);          // m/d/yyyy or m/d/yy
+  if(m){ let y=m[3]; if(y.length===2) y='20'+y;
+    return `${y}-${String(+m[1]).padStart(2,'0')}-${String(+m[2]).padStart(2,'0')}`; }
+  return null;                                                    // unparseable -> skip the cell
+}
+// Coerce one pasted string for a column. Returns {key,value} or null to skip.
+function coercePaste(col, raw){
+  if(!col) return null;
+  if(['dtext','dmoney','ts'].includes(col.type) || col.ro) return null;   // derived / read-only
+  const s = String(raw==null?'':raw).trim();
+  switch(col.type){
+    case 'bool': case 'chkna':
+      if(/^(true|yes|y|1|x|✓|checked)$/i.test(s)) return {key:col.k, value:true};
+      if(s==='' || /^(false|no|n|0)$/i.test(s))   return {key:col.k, value:false};
+      return null;
+    case 'money': case 'int': {
+      if(s==='') return {key:col.k, value:null};
+      const n = parseFloat(s.replace(/[^0-9.\-]/g,''));
+      return isFinite(n) ? {key:col.k, value:col.type==='int'?Math.round(n):n} : null;
+    }
+    case 'omoney': {
+      if(s==='') return {key:col.ov, value:null};
+      const n = parseFloat(s.replace(/[^0-9.\-]/g,''));
+      return isFinite(n) ? {key:col.ov, value:n} : null;
+    }
+    case 'pct': {
+      if(s==='') return {key:col.k, value:null};
+      const n = parseFloat(s.replace(/[^0-9.\-]/g,''));
+      return isFinite(n) ? {key:col.k, value:n/100} : null;      // "15" or "15%" -> 0.15, like the cell editor
+    }
+    case 'date': { const iso = parseDateToISO(s); return iso ? {key:col.k, value:iso} : null; }
+    default: return {key:col.k, value:s};                        // text
+  }
+}
+function pasteBlock(text){
+  const matrix = text.replace(/\r\n?/g,'\n').replace(/\n$/,'').split('\n').map(l=>l.split('\t'));
+  if(!matrix.length) return;
+  const {rowIds, colKeys} = navOrder();
+  const startR = Math.max(0, rowIds.indexOf(sel.id));
+  const startC = Math.max(0, colKeys.indexOf(sel.k));
+  const changedByRow = new Map();                                // id -> {row, keys:Set}
+  let written=0, skipped=0, overflowRows=0;
+  matrix.forEach((cells,i)=>{
+    const rid = rowIds[startR+i];
+    if(rid===undefined){ overflowRows++; return; }               // more pasted rows than grid rows
+    const row = rows.find(r=>r.id===rid); if(!row) return;
+    cells.forEach((raw,j)=>{
+      const ck = colKeys[startC+j]; if(ck===undefined) return;   // past the last column
+      const res = coercePaste(COLS.find(c=>c.k===ck), raw);
+      if(!res){ skipped++; return; }
+      row[res.key] = res.value;
+      if(!changedByRow.has(rid)) changedByRow.set(rid, {row, keys:new Set()});
+      changedByRow.get(rid).keys.add(res.key); written++;
+    });
+  });
+  if(!written){ toast('Nothing pasteable into those cells.', false); return; }
+  changedByRow.forEach(({row,keys})=> persist(row, [...keys]));  // one update (one history entry) per row
+  render();
+  let msg = `Pasted ${written} value${written===1?'':'s'} into ${changedByRow.size} row${changedByRow.size===1?'':'s'}`;
+  const notes=[];
+  if(overflowRows) notes.push(`${overflowRows} row${overflowRows===1?'':'s'} didn't fit — add rows first`);
+  if(skipped) notes.push(`${skipped} skipped (read-only)`);
+  if(notes.length) msg += ' · '+notes.join(' · ');
+  toast(msg, true);
+}
+document.addEventListener('paste', e=>{
+  if(editingActive) return;                                      // editing: let the input paste normally
+  if($('histModal').classList.contains('show')||$('trashModal').classList.contains('show')||$('dd').classList.contains('show')) return;
+  const ae = document.activeElement;
+  if(ae && ae!==document.body && !$('wrap').contains(ae)) return; // paste meant for search / name box
+  if(!sel) return;
+  const text = (e.clipboardData||window.clipboardData).getData('text/plain');
+  if(!text) return;
+  e.preventDefault();
+  if(!requireEdit()) return;
+  pasteBlock(text);
+});
+
 function newRow(seed){
   const max = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
   return Object.assign({ rebate_pct:0.15, source:'manual', sort_order:max+1,
