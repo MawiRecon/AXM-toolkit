@@ -32,6 +32,7 @@
   button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
   button.primary:hover{background:var(--accent-hover)}
   button.ghost{background:transparent}
+  button.on{background:var(--accent-tint);border-color:var(--accent);color:var(--accent)}
   .count{color:var(--faint);font-size:12px;white-space:nowrap}
 
   /* ---------- Summary strip ----------
@@ -44,6 +45,7 @@
   .stat .lab{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .stat .val{font-size:21px;font-weight:600;letter-spacing:-.02em;line-height:1.25;
     font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stat .val.neg{color:var(--err)}
   .stat .sub{font-size:11.5px;color:var(--faint)}
   .scope{flex:0 0 auto;display:none;align-items:center;gap:8px;align-self:center;
     padding:5px 10px;border-radius:999px;background:var(--accent-tint);color:var(--accent);
@@ -165,6 +167,7 @@
   <input id="search" class="search" type="text" placeholder="Filter campaigns, advertisers, entities…">
   <span id="count" class="count"></span>
   <button id="addBtn" class="primary">+ Add row</button>
+  <button id="metaBtn" class="ghost" title="Show when each row was added and last changed">Timestamps</button>
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
   <button id="exportBtn" class="ghost">Export CSV</button>
   <button id="signout" class="ghost" style="display:none">Sign out</button>
@@ -172,9 +175,14 @@
 
 <div id="stats" class="stats">
   <div class="stat">
-    <div class="lab">Total Rebate Sent</div>
-    <div class="val" id="statRebate">—</div>
-    <div class="sub" id="statRebateSub"></div>
+    <div class="lab">Invoice Discount</div>
+    <div class="val" id="statDiscount">—</div>
+    <div class="sub" id="statDiscountSub"></div>
+  </div>
+  <div class="stat">
+    <div class="lab">Back-End Rebate</div>
+    <div class="val" id="statBackend">—</div>
+    <div class="sub" id="statBackendSub"></div>
   </div>
   <div class="stat">
     <div class="lab">Total Media Budget</div>
@@ -250,15 +258,34 @@ const COLS = [
   {k:'bill_direct',       lt:'Y', label:'Bill Client Direct', type:'bool',  w:88},
   {k:'notes',             lt:'Z', label:'Notes',              type:'text',  w:220},
   {k:'internal_note',     lt:'AA',label:'Sara/Jon Only',      type:'chkna', w:110},
+  /* Audit columns — written by the database, never by the grid. Hidden behind the
+     toolbar toggle so they don't widen the everyday view. "Added" is when the row
+     entered THIS tool (for the 2026 seed rows that's the import date, not the
+     campaign's original date in the Sheet); "Last updated" is the staleness signal. */
+  {k:'created_at',        lt:'AB',label:'Added',              type:'ts',    w:160, meta:true},
+  {k:'updated_at',        lt:'AC',label:'Last Updated',       type:'ts',    w:160, meta:true},
 ];
-const STORED = COLS.filter(c=>!['dtext','dmoney'].includes(c.type)).map(c=>c.k)
+const STORED = COLS.filter(c=>!['dtext','dmoney','ts'].includes(c.type)).map(c=>c.k)
   .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
 const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1,gross_profit:1,backend_rebate:1,amount_paid:1};
+
+/* Audit columns stay collapsed until asked for; the choice sticks per browser. */
+const META_KEY = 'ax_billing_show_meta_v1';
+let showMeta = localStorage.getItem(META_KEY)==='1';
+function viewCols(){ return showMeta ? COLS : COLS.filter(c=>!c.meta); }
 
 /* ---------- formatting ---------- */
 const money = v => v==null||v===''||isNaN(v) ? '' :
   (v<0?'-':'')+'$'+Math.abs(+v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pctFmt = v => v==null||v===''||isNaN(v) ? '' : (+v*100).toLocaleString('en-US',{maximumFractionDigits:2})+'%';
+/* Timestamps arrive as UTC ISO strings; show them in the reader's local time. */
+const tsFmt = v => {
+  if(v==null||v==='') return '';
+  const d = new Date(v);
+  if(isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+       + ' · ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+};
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- state ---------- */
@@ -287,6 +314,7 @@ function displayVal(c, r){
   switch(c.type){
     case 'money': case 'dmoney': case 'omoney': return money(v);
     case 'pct': return pctFmt(v);
+    case 'ts': return tsFmt(v);
     case 'date': return v || '';
     case 'int': return v==null?'':v;
     default: return v==null?'':v;
@@ -328,26 +356,48 @@ function renderStats(list, total){
   const nums = k => list.map(r=>r[k]).filter(v=>typeof v==='number' && isFinite(v));
   const sum  = a => a.reduce((s,v)=>s+v, 0);
 
-  const rebate = nums('rebate_value');
-  const spend  = sum(nums('actual_spend'));
-  const budget = nums('io_amount');
-  const margin = nums('margin');
+  const rebate  = nums('rebate_value');
+  const spend   = sum(nums('actual_spend'));
+  const backend = nums('backend_rebate');
+  const budget  = nums('io_amount');
+  const margin  = nums('margin');
+
+  /* Show a total only when something actually feeds it — an em dash beats a
+     confident $0.00 over rows that simply have nothing entered yet. Negatives
+     go red, same as the grid cells. */
+  const put = (id, has, value, sub) => {
+    const el = $(id);
+    el.textContent = has ? value.text : '—';
+    el.classList.toggle('neg', has && value.n < 0);
+    $(id+'Sub').textContent = sub;
+  };
 
   const rebateTot = sum(rebate);
-  $('statRebate').textContent = rebate.length ? money(rebateTot) : '—';
-  $('statRebateSub').textContent = rebate.length
-    ? (spend ? pctFmt(rebateTot/spend)+' of actualized spend' : rebate.length+' row'+(rebate.length===1?'':'s'))
-    : 'No rebate values in view';
+  put('statDiscount', rebate.length, {text:money(rebateTot), n:rebateTot},
+    rebate.length
+      ? (spend ? pctFmt(rebateTot/spend)+' of actualized spend' : rebate.length+' row'+(rebate.length===1?'':'s'))
+      : 'No rebate values in view');
 
-  $('statBudget').textContent = budget.length ? money(sum(budget)) : '—';
-  $('statBudgetSub').textContent = budget.length
-    ? budget.length+' campaign'+(budget.length===1?'':'s')+' with an IO amount'
-    : 'No IO amounts in view';
+  // Back-End Rebate mirrors column P, so hand-set overrides count exactly as they
+  // do in the grid. Flag how many are overridden — the total isn't purely formula.
+  const backendTot = sum(backend);
+  const ovr = list.filter(r=>r._backend_rebate_isOverride).length;
+  put('statBackend', backend.length, {text:money(backendTot), n:backendTot},
+    backend.length
+      ? backend.length+' row'+(backend.length===1?'':'s')+(ovr?' · '+ovr+' hand-set':'')
+      : 'No back-end rebates in view');
 
-  $('statMargin').textContent = margin.length ? pctFmt(sum(margin)/margin.length) : '—';
-  $('statMarginSub').textContent = margin.length
-    ? 'Average of '+margin.length+' of '+list.length+' row'+(list.length===1?'':'s')
-    : 'No margins in view';
+  const budgetTot = sum(budget);
+  put('statBudget', budget.length, {text:money(budgetTot), n:budgetTot},
+    budget.length
+      ? budget.length+' campaign'+(budget.length===1?'':'s')+' with an IO amount'
+      : 'No IO amounts in view');
+
+  const avgMargin = margin.length ? sum(margin)/margin.length : 0;
+  put('statMargin', margin.length, {text:pctFmt(avgMargin), n:avgMargin},
+    margin.length
+      ? 'Average of '+margin.length+' of '+list.length+' row'+(list.length===1?'':'s')
+      : 'No margins in view');
 
   const filtered = activeFilterCount()>0;
   $('stats').classList.toggle('filtered', filtered);
@@ -383,14 +433,15 @@ function render(){
   // colgroup — table-layout:fixed reads widths from here so resize works.
   // Set the table's explicit width to the sum of column widths, otherwise the
   // browser proportionally stretches the columns instead of honoring them.
-  const totalW = COLS.reduce((s,c)=>s+widthOf(c),0) + 38;
+  const VC = viewCols();
+  const totalW = VC.reduce((s,c)=>s+widthOf(c),0) + 38;
   $('grid').style.width = totalW + 'px';
   let h = '<colgroup>';
-  COLS.forEach(c=>{ h += `<col data-cw="${c.k}" style="width:${widthOf(c)}px">`; });
+  VC.forEach(c=>{ h += `<col data-cw="${c.k}" style="width:${widthOf(c)}px">`; });
   h += '<col style="width:38px"></colgroup>';
 
   h += '<thead><tr>';
-  COLS.forEach(c=>{
+  VC.forEach(c=>{
     const active = sortKey===c.k;
     const arrow  = active ? `<span class="arr">${sortDir>0?'▲':'▼'}</span>` : '';
     const filt   = filters[c.k] ? '<span class="flt" title="Filter active">▼</span>' : '';
@@ -403,7 +454,7 @@ function render(){
 
   list.forEach(r=>{
     h += '<tr data-id="'+r.id+'">';
-    COLS.forEach(c=>{
+    VC.forEach(c=>{
       if(c.type==='bool'){
         h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${r[c.k]?'checked':''}></div></td>`;
         return;
@@ -419,7 +470,7 @@ function render(){
         h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${on?'checked':''}></div></td>`;
         return;
       }
-      const derived = c.type==='dtext'||c.type==='dmoney';
+      const derived = ['dtext','dmoney','ts'].includes(c.type);   // read-only, muted
       const num = ['money','dmoney','omoney','pct','int'].includes(c.type);
       const val = displayVal(c, r);
       const neg = num && typeof r[c.k]==='number' && r[c.k]<0;
@@ -436,14 +487,14 @@ function render(){
   // "+ Add row" — sticky-left cell that always stays visible while scrolling
   h += `<tr class="add-row" data-add-row><td class="add-btn" title="Add a new row">`
      + `<span class="plus">+</span><span>Add row</span></td>`
-     + `<td colspan="${COLS.length}"></td></tr>`;
+     + `<td colspan="${VC.length}"></td></tr>`;
   h += '</tbody>';
 
   // totals footer
   const tot = {}; Object.keys(TOTALCOLS).forEach(k=>tot[k]=0);
   list.forEach(r=>Object.keys(TOTALCOLS).forEach(k=>{ if(typeof r[k]==='number') tot[k]+=r[k]; }));
   h += '<tfoot><tr>';
-  COLS.forEach((c,i)=>{
+  VC.forEach((c,i)=>{
     if(i===0){ h += `<td class="sticky">Totals · ${list.length}</td>`; return; }
     h += `<td>${TOTALCOLS[c.k]?money(tot[c.k]):''}</td>`;
   });
@@ -464,7 +515,7 @@ function requestReload(){ if(editingActive){ pendingReload = true; } else reload
 function beginEdit(td){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
-  if(['dtext','dmoney','chkna'].includes(col.type)) return;  // read-only / checkbox-only
+  if(['dtext','dmoney','ts','chkna'].includes(col.type)) return;  // read-only / checkbox-only
   const row = rows.find(r=>r.id===id); if(!row) return;
   if(td.classList.contains('editing')) return;
 
@@ -542,6 +593,21 @@ function addRow(seed){
 }
 $('addBtn').onclick = ()=>addRow();
 $('emptyAdd').onclick = ()=>addRow();
+
+/* ---------- audit columns toggle ---------- */
+function syncMetaBtn(){
+  const b = $('metaBtn');
+  b.textContent = showMeta ? 'Hide timestamps' : 'Timestamps';
+  b.classList.toggle('on', showMeta);
+}
+$('metaBtn').onclick = ()=>{
+  showMeta = !showMeta;
+  localStorage.setItem(META_KEY, showMeta?'1':'0');
+  syncMetaBtn(); render();
+  // they live past the right edge of a wide grid — scroll them into view
+  if(showMeta){ const w=$('wrap'); w.scrollLeft = w.scrollWidth; }
+};
+syncMetaBtn();
 
 /* ---------- import (local testing) ---------- */
 function doImport(){
@@ -788,7 +854,7 @@ $('wrap').addEventListener('pointerdown', e=>{
     const w = Math.max(48, Math.round(startW + (ev.clientX - startX)));
     col.style.width = w + 'px';
     colWidths[key] = w;
-    const total = COLS.reduce((s,c)=>s+widthOf(c),0) + 38;
+    const total = viewCols().reduce((s,c)=>s+widthOf(c),0) + 38;
     $('grid').style.width = total + 'px';
   }
   function onUp(){
