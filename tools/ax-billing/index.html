@@ -34,8 +34,27 @@
   button.ghost{background:transparent}
   .count{color:var(--faint);font-size:12px;white-space:nowrap}
 
+  /* ---------- Summary strip ----------
+     Grand totals for whatever the filters currently show. Sits between the
+     toolbar and the grid; --top (set by layout()) keeps the grid below it. */
+  .stats{display:flex;gap:10px;padding:10px 16px;background:var(--bg);
+    border-bottom:1px solid var(--line-soft);flex-wrap:wrap;align-items:stretch}
+  .stat{flex:1 1 190px;min-width:168px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:9px 13px;display:flex;flex-direction:column;gap:1px}
+  .stat .lab{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .stat .val{font-size:21px;font-weight:600;letter-spacing:-.02em;line-height:1.25;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stat .sub{font-size:11.5px;color:var(--faint)}
+  .scope{flex:0 0 auto;display:none;align-items:center;gap:8px;align-self:center;
+    padding:5px 10px;border-radius:999px;background:var(--accent-tint);color:var(--accent);
+    font-size:11.5px;font-weight:600;white-space:nowrap}
+  .stats.filtered .scope{display:flex}
+  .scope button{padding:2px 8px;font-size:11px;font-weight:600;border-radius:999px;
+    background:transparent;border-color:transparent;color:var(--accent)}
+  .scope button:hover{background:var(--panel);border-color:transparent}
+
   /* ---------- Grid ---------- */
-  .wrap{position:absolute;inset:57px 0 0 0;overflow:auto}
+  .wrap{position:absolute;inset:var(--top,57px) 0 0 0;overflow:auto}
   table{border-collapse:separate;border-spacing:0;table-layout:fixed}
   thead th{position:sticky;top:0;z-index:20;background:#211F1D;color:var(--muted);
     font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;
@@ -134,7 +153,7 @@
     box-shadow:0 10px 30px rgba(0,0,0,.4)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.ok{border-color:rgba(110,159,131,.5)}
-  .empty{position:absolute;inset:57px 0 0 0;display:flex;flex-direction:column;align-items:center;
+  .empty{position:absolute;inset:var(--top,57px) 0 0 0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;color:var(--faint);gap:14px;text-align:center;padding:20px}
 </style>
 </head>
@@ -149,6 +168,25 @@
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
   <button id="exportBtn" class="ghost">Export CSV</button>
   <button id="signout" class="ghost" style="display:none">Sign out</button>
+</div>
+
+<div id="stats" class="stats">
+  <div class="stat">
+    <div class="lab">Total Rebate Sent</div>
+    <div class="val" id="statRebate">—</div>
+    <div class="sub" id="statRebateSub"></div>
+  </div>
+  <div class="stat">
+    <div class="lab">Total Media Budget</div>
+    <div class="val" id="statBudget">—</div>
+    <div class="sub" id="statBudgetSub"></div>
+  </div>
+  <div class="stat">
+    <div class="lab">Average Margin</div>
+    <div class="val" id="statMargin">—</div>
+    <div class="sub" id="statMarginSub"></div>
+  </div>
+  <div class="scope"><span id="statScope"></span><button id="clearFilters" title="Clear the search box and every column filter">Clear</button></div>
 </div>
 
 <div id="wrap" class="wrap"><table id="grid"></table></div>
@@ -283,6 +321,50 @@ function currentList(){
 }
 function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0); }
 
+/* ---------- summary strip ----------
+   Everything here is computed from the SAME list the grid renders, so the
+   totals always describe exactly what's on screen under the current filters. */
+function renderStats(list, total){
+  const nums = k => list.map(r=>r[k]).filter(v=>typeof v==='number' && isFinite(v));
+  const sum  = a => a.reduce((s,v)=>s+v, 0);
+
+  const rebate = nums('rebate_value');
+  const spend  = sum(nums('actual_spend'));
+  const budget = nums('io_amount');
+  const margin = nums('margin');
+
+  const rebateTot = sum(rebate);
+  $('statRebate').textContent = rebate.length ? money(rebateTot) : '—';
+  $('statRebateSub').textContent = rebate.length
+    ? (spend ? pctFmt(rebateTot/spend)+' of actualized spend' : rebate.length+' row'+(rebate.length===1?'':'s'))
+    : 'No rebate values in view';
+
+  $('statBudget').textContent = budget.length ? money(sum(budget)) : '—';
+  $('statBudgetSub').textContent = budget.length
+    ? budget.length+' campaign'+(budget.length===1?'':'s')+' with an IO amount'
+    : 'No IO amounts in view';
+
+  $('statMargin').textContent = margin.length ? pctFmt(sum(margin)/margin.length) : '—';
+  $('statMarginSub').textContent = margin.length
+    ? 'Average of '+margin.length+' of '+list.length+' row'+(list.length===1?'':'s')
+    : 'No margins in view';
+
+  const filtered = activeFilterCount()>0;
+  $('stats').classList.toggle('filtered', filtered);
+  if(filtered) $('statScope').textContent = 'Filtered · '+list.length+' of '+total+' rows';
+}
+
+/* The toolbar wraps on narrow windows and the summary strip has its own height,
+   so measure both instead of assuming a fixed offset for the scroll area. */
+function layout(){
+  const bar = document.querySelector('.bar');
+  const st  = $('stats');
+  const h = (bar?bar.getBoundingClientRect().height:57)
+          + (st && st.style.display!=='none' ? st.getBoundingClientRect().height : 0);
+  document.documentElement.style.setProperty('--top', Math.round(h)+'px');
+}
+window.addEventListener('resize', layout);
+
 /* ---------- render ---------- */
 function render(){
   const list = currentList();
@@ -293,7 +375,10 @@ function render(){
   const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
   $('empty').style.display = total===0 ? 'flex':'none';
   $('wrap').style.display  = total===0 ? 'none':'block';
-  if(total===0){ $('grid').innerHTML=''; return; }
+  $('stats').style.display = total===0 ? 'none':'flex';
+  if(total===0){ $('grid').innerHTML=''; layout(); return; }
+  renderStats(list, total);
+  layout();
 
   // colgroup — table-layout:fixed reads widths from here so resize works.
   // Set the table's explicit width to the sum of column widths, otherwise the
@@ -443,6 +528,7 @@ $('wrap').addEventListener('click', e=>{
   if(td && !e.target.closest('.chk')) beginEdit(td);
 });
 $('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
+$('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; closeDropdown(); render(); };
 
 function newRow(seed){
   const max = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
