@@ -554,7 +554,8 @@ function beginEdit(td){
       } else {
         row[k] = v;
       }
-      persist(row);
+      // omoney edits the override column, not k (k itself is derived, not stored)
+      persist(row, [col.type==='omoney' ? col.ov : k]);
     }
     // If a realtime change arrived while editing, apply it now instead of a plain
     // render() so we don't drop another user's concurrent update.
@@ -567,9 +568,18 @@ function beginEdit(td){
   });
 }
 
-function persist(row){
-  const clean = {}; STORED.forEach(k=>{ if(row[k]!==undefined) clean[k]=row[k]; });
-  store.upsert(clean).catch(err=>toast('Save failed: '+err.message, false));
+/* Save a cell edit. We write ONLY the field(s) that changed, never the whole row.
+   The shared login means two people can have the grid open at once; a full-row
+   write would stamp our stale copy of every OTHER column over their concurrent
+   edit, silently losing it. A field-scoped UPDATE can only ever touch what we
+   actually changed. `keys` lists the changed stored field(s); omitting it falls
+   back to a full-row write for safety, but every caller passes it. */
+function persist(row, keys){
+  if(!row.id) return;                        // new rows go through addRow's insert
+  const patch = {};
+  (keys || STORED).forEach(k=>{ if(k!=='id' && row[k]!==undefined) patch[k]=row[k]; });
+  if(!Object.keys(patch).length) return;
+  store.update(row.id, patch).catch(err=>toast('Save failed: '+err.message, false));
 }
 
 /* ---------- events ---------- */
@@ -582,7 +592,7 @@ $('wrap').addEventListener('click', e=>{
   if(del){ const tr=del.closest('tr'); if(confirm('Delete this row?')){ store.remove(tr.dataset.id).then(reload); } return; }
   const chk = e.target.closest('.chk input');
   if(chk){ const tr=chk.closest('tr'); const k=chk.closest('td').dataset.k;
-    const row=rows.find(r=>r.id===tr.dataset.id); if(row){ row[k]=chk.checked; persist(row); } return; }
+    const row=rows.find(r=>r.id===tr.dataset.id); if(row){ row[k]=chk.checked; persist(row, [k]); } return; }
   const td = e.target.closest('td[data-k]');
   if(td && !e.target.closest('.chk')) beginEdit(td);
 });

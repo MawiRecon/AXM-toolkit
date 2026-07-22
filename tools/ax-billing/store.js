@@ -49,6 +49,19 @@
     this._write(rows);
     return Promise.resolve(row);
   };
+  /* Patch ONLY the given fields on an existing row. Unlike upsert, a patch to a
+     row that was deleted out from under us is a no-op (0 rows) rather than a
+     resurrection from column defaults. */
+  LocalStore.prototype.update = function (id, patch) {
+    var rows = this._read();
+    var i = rows.findIndex(function (r) { return r.id === id; });
+    if (i >= 0) {
+      patch.updated_at = new Date().toISOString();
+      rows[i] = Object.assign({}, rows[i], patch);
+      this._write(rows);
+    }
+    return Promise.resolve();
+  };
   LocalStore.prototype.remove = function (id) {
     this._write(this._read().filter(function (r) { return r.id !== id; }));
     return Promise.resolve();
@@ -114,6 +127,13 @@
     row.updated_at = new Date().toISOString();
     return this.c.from('billing_rows').upsert(row).select().single()
       .then(function (r) { if (r.error) throw r.error; return r.data; });
+  };
+  /* Partial UPDATE by id — touches only the columns in `patch`, so a field another
+     user changed concurrently is never overwritten by our stale copy of it. */
+  SupabaseStore.prototype.update = function (id, patch) {
+    patch.updated_at = new Date().toISOString();
+    return this.c.from('billing_rows').update(patch).eq('id', id)
+      .then(function (r) { if (r.error) throw r.error; });
   };
   SupabaseStore.prototype.remove = function (id) {
     return this.c.from('billing_rows').delete().eq('id', id)
