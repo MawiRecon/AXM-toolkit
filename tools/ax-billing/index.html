@@ -173,9 +173,12 @@
   .cell input,.cell select{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:0;margin:0}
   td.editing{box-shadow:inset 0 0 0 2px var(--accent);background:var(--panel-2)}
   td.editing .cell{padding:5px 8px}
-  /* keyboard "active cell" — a ring like a spreadsheet's selection, distinct from editing */
-  td.sel{box-shadow:inset 0 0 0 2px var(--accent);z-index:16}
-  td.sel.sticky{z-index:17}
+  /* keyboard "active cell" — a ring like a spreadsheet's selection, distinct from editing.
+     z-index sits ABOVE normal cells but BELOW the sticky first column (15), so a selected
+     cell slides UNDER column A when scrolled left instead of overlaying it. When column A
+     itself is the selected cell it keeps the sticky layer so its ring stays on top. */
+  td.sel{box-shadow:inset 0 0 0 2px var(--accent);z-index:4}
+  td.sel.sticky{z-index:15}
   .chk{display:flex;align-items:center;justify-content:center;height:100%}
   .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
   td.act{border-right:0;white-space:nowrap;text-align:center}
