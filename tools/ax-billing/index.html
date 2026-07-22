@@ -421,6 +421,14 @@ function render(){
   const shown = list.length;
   const total = rows.length;
   $('count').textContent = shown + (activeFilterCount()?(' of '+total):'') + ' rows';
+  // The export follows the filters, so say so on the button itself — otherwise a
+  // partial CSV looks exactly like a full one.
+  const filt = activeFilterCount()>0;
+  $('exportBtn').textContent = filt ? `Export ${shown} row${shown===1?'':'s'}` : 'Export CSV';
+  $('exportBtn').title = filt
+    ? `Export just the ${shown} row${shown===1?'':'s'} matching your current filters, in the order shown`
+    : 'Export all rows';
+  $('exportBtn').classList.toggle('on', filt);
   // Import button is a one-time seed tool — hide the moment there's any data
   const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
   $('empty').style.display = total===0 ? 'flex':'none';
@@ -634,11 +642,16 @@ function doImport(){
 $('importBtn').onclick = doImport;
 $('emptyImport').onclick = doImport;
 
-/* ---------- export ---------- */
+/* ---------- export ----------
+   Exports WHAT YOU SEE: currentList() is the same filtered+sorted list the grid
+   renders, so the search box, every column filter and the active sort all carry
+   through. Columns are deliberately NOT filtered to the visible ones — a hidden
+   column costs nothing in a CSV, but a silently missing one costs a re-export. */
 $('exportBtn').onclick = ()=>{
+  const list = currentList();
   const heads = COLS.map(c=>c.label);
   const lines = [heads.map(csv).join(',')];
-  rows.map(withDerived).forEach(r=>{
+  list.forEach(r=>{
     lines.push(COLS.map(c=>{
       if(c.type==='bool') return r[c.k]?'TRUE':'FALSE';
       if(c.type==='chkna'){
@@ -654,8 +667,13 @@ $('exportBtn').onclick = ()=>{
   const blob = new Blob([lines.join('\r\n')], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'billing-export-'+new Date().toISOString().slice(0,10)+'.csv';
+  // "-filtered" in the name so a partial export is still identifiable weeks later,
+  // sitting in Downloads next to a full one
+  a.download = 'billing-export'+(activeFilterCount()?'-filtered':'')
+             + '-'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
+  toast(`Exported ${list.length} row${list.length===1?'':'s'}`
+        + (activeFilterCount()?' (filtered view)':''), true);
 };
 function csv(v){ v=v==null?'':String(v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 
