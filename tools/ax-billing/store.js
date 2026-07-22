@@ -11,6 +11,7 @@
   "use strict";
   var CFG = window.AX_BILLING_CONFIG || { BACKEND: 'local' };
   var LS_KEY = 'ax_billing_rows_v1';
+  var LS_HIST = 'ax_billing_history_v1';   // local-mode mirror of billing_rows_history
 
   function uuid() {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -40,13 +41,53 @@
     rows.sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
     return Promise.resolve(rows);
   };
+  /* ---- local-mode history mirror ----
+     In Supabase a trigger writes billing_rows_history; local mode has no trigger,
+     so the store logs the same shape here. Keeps the history panel functional for
+     local testing and for anyone running the tool offline. */
+  LocalStore.prototype._logHist = function (action, oldRow, newRow) {
+    try {
+      var hist = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
+      var ref = newRow || oldRow || {};
+      hist.push({
+        id: hist.length ? hist[hist.length - 1].id + 1 : 1,
+        row_id: ref.id, action: action,
+        actor: ref.updated_by || null, campaign: ref.campaign_name || null,
+        changed_at: new Date().toISOString(),
+        old_data: oldRow ? Object.assign({}, oldRow) : null,
+        new_data: newRow ? Object.assign({}, newRow) : null
+      });
+      localStorage.setItem(LS_HIST, JSON.stringify(hist));
+    } catch (e) {}
+  };
+  // did anything change beyond the updated_at/updated_by bookkeeping? (mirrors the
+  // trigger's guard against logging pure churn)
+  LocalStore.prototype._changedBeyondMeta = function (a, b) {
+    var skip = { updated_at: 1, updated_by: 1 }, keys = {};
+    Object.keys(a || {}).forEach(function (k) { keys[k] = 1; });
+    Object.keys(b || {}).forEach(function (k) { keys[k] = 1; });
+    return Object.keys(keys).some(function (k) {
+      if (skip[k]) return false;
+      return JSON.stringify(a ? a[k] : undefined) !== JSON.stringify(b ? b[k] : undefined);
+    });
+  };
+  LocalStore.prototype.history = function (rowId) {
+    var hist = [];
+    try { hist = JSON.parse(localStorage.getItem(LS_HIST) || '[]'); } catch (e) {}
+    hist = hist.filter(function (h) { return h.row_id === rowId; })
+               .sort(function (a, b) { return a.changed_at < b.changed_at ? 1 : -1; });
+    return Promise.resolve(hist);
+  };
   LocalStore.prototype.upsert = function (row) {
     var rows = this._read();
     if (!row.id) { row.id = uuid(); row.created_at = new Date().toISOString(); }
     row.updated_at = new Date().toISOString();
     var i = rows.findIndex(function (r) { return r.id === row.id; });
-    if (i >= 0) rows[i] = Object.assign({}, rows[i], row); else rows.push(row);
+    var isNew = i < 0, oldRow = isNew ? null : rows[i];
+    var merged = isNew ? row : Object.assign({}, rows[i], row);
+    if (isNew) rows.push(row); else rows[i] = merged;
     this._write(rows);
+    this._logHist(isNew ? 'insert' : 'update', oldRow, merged);
     return Promise.resolve(row);
   };
   /* Patch ONLY the given fields on an existing row. Unlike upsert, a patch to a
@@ -56,14 +97,20 @@
     var rows = this._read();
     var i = rows.findIndex(function (r) { return r.id === id; });
     if (i >= 0) {
+      var oldRow = rows[i];
       patch.updated_at = new Date().toISOString();
-      rows[i] = Object.assign({}, rows[i], patch);
+      var merged = Object.assign({}, rows[i], patch);
+      rows[i] = merged;
       this._write(rows);
+      if (this._changedBeyondMeta(oldRow, merged)) this._logHist('update', oldRow, merged);
     }
     return Promise.resolve();
   };
   LocalStore.prototype.remove = function (id) {
-    this._write(this._read().filter(function (r) { return r.id !== id; }));
+    var rows = this._read();
+    var victim = rows.find(function (r) { return r.id === id; });
+    this._write(rows.filter(function (r) { return r.id !== id; }));
+    if (victim) this._logHist('delete', victim, null);
     return Promise.resolve();
   };
   LocalStore.prototype.bulkInsert = function (list) {
@@ -146,6 +193,12 @@
   SupabaseStore.prototype.bulkUpsert = function (list) {
     return this.c.from('billing_rows').upsert(list, { onConflict: 'id' }).select()
       .then(function (r) { if (r.error) throw r.error; return (r.data || []).length; });
+  };
+  // Full change log for one row, newest first (written by the billing_rows_audit trigger).
+  SupabaseStore.prototype.history = function (rowId) {
+    return this.c.from('billing_rows_history').select('*').eq('row_id', rowId)
+      .order('changed_at', { ascending: false })
+      .then(function (r) { if (r.error) throw r.error; return r.data || []; });
   };
   SupabaseStore.prototype.count = function () {
     return this.c.from('billing_rows').select('id', { count: 'exact', head: true })

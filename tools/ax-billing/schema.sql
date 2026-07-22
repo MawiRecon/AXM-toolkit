@@ -56,7 +56,8 @@ create table if not exists billing_rows (
   source                    text default 'manual', -- 'manual' | 'io-tool'
   sort_order                double precision default 0,
   created_at                timestamptz default now(),
-  updated_at                timestamptz default now()
+  updated_at                timestamptz default now(),
+  updated_by                text                   -- self-attested name from the app's "editing as" gate
 );
 
 alter table billing_rows enable row level security;
@@ -84,3 +85,75 @@ alter publication supabase_realtime add table billing_rows;
 -- in a raw SQL query, compute them there against rebate.js rather than reviving a view.
 -- (If an old billing_rows_full view still exists in the project, drop it:
 --    drop view if exists billing_rows_full; )
+
+
+-- =====================================================================
+-- CHANGE HISTORY + ATTRIBUTION  (added 2026-07)
+-- ---------------------------------------------------------------------
+-- The app has no per-person login (one shared PIN). Instead it asks each
+-- editor for their name once ("editing as ___", stored in their browser)
+-- and stamps it onto billing_rows.updated_by on every write. A trigger
+-- then snapshots every insert/update/delete into billing_rows_history so
+-- you get a full "who changed this number from X to Y, and when" trail.
+--
+-- This is attribution, not authentication — anyone with the PIN can type
+-- any name. It's a breadcrumb trail among trusted colleagues, nothing more.
+--
+-- ---- EXISTING DEPLOYMENTS: run this once. -------------------------------
+-- The `updated_by` column above is already in the CREATE for fresh installs;
+-- on the live table it doesn't exist yet, so add it (no-op if already there):
+alter table billing_rows add column if not exists updated_by text;
+
+-- One row per change. old_data/new_data are full-row jsonb snapshots, so the
+-- app can diff any field pair without this table needing to know the columns.
+create table if not exists billing_rows_history (
+  id          bigint generated always as identity primary key,
+  row_id      uuid        not null,          -- billing_rows.id (NOT a FK: survives row deletion)
+  action      text        not null,          -- 'insert' | 'update' | 'delete'
+  actor       text,                          -- who (billing_rows.updated_by at the time)
+  campaign    text,                          -- denormalized name, so raw queries are readable
+  changed_at  timestamptz not null default now(),
+  old_data    jsonb,                         -- null on insert
+  new_data    jsonb                          -- null on delete
+);
+create index if not exists billing_history_row_idx on billing_rows_history (row_id, changed_at desc);
+
+-- SECURITY DEFINER so the trigger can always write history regardless of the
+-- caller's grants; the actor rides in on the row's own updated_by column, so no
+-- session-variable plumbing is needed.
+create or replace function log_billing_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (tg_op = 'DELETE') then
+    insert into billing_rows_history(row_id, action, actor, campaign, old_data, new_data)
+      values (OLD.id, 'delete', OLD.updated_by, OLD.campaign_name, to_jsonb(OLD), null);
+    return OLD;
+  elsif (tg_op = 'UPDATE') then
+    -- Ignore pure bookkeeping churn: if nothing but updated_at/updated_by changed,
+    -- don't record a history row (e.g. the touch-before-delete, or a no-op commit).
+    if (to_jsonb(OLD) - 'updated_at' - 'updated_by') = (to_jsonb(NEW) - 'updated_at' - 'updated_by') then
+      return NEW;
+    end if;
+    insert into billing_rows_history(row_id, action, actor, campaign, old_data, new_data)
+      values (NEW.id, 'update', NEW.updated_by, NEW.campaign_name, to_jsonb(OLD), to_jsonb(NEW));
+    return NEW;
+  else  -- INSERT
+    insert into billing_rows_history(row_id, action, actor, campaign, old_data, new_data)
+      values (NEW.id, 'insert', NEW.updated_by, NEW.campaign_name, null, to_jsonb(NEW));
+    return NEW;
+  end if;
+end;
+$$;
+
+drop trigger if exists billing_rows_audit on billing_rows;
+create trigger billing_rows_audit
+  after insert or update or delete on billing_rows
+  for each row execute function log_billing_change();
+
+-- History is read-only to the app; only the trigger writes it (and the trigger's
+-- SECURITY DEFINER owner bypasses these policies). Authenticated can read; anon
+-- gets nothing, same posture as billing_rows.
+alter table billing_rows_history enable row level security;
+create policy "auth read history" on billing_rows_history for select to authenticated using (true);
+grant select on billing_rows_history to authenticated;
+revoke all on billing_rows_history from anon;

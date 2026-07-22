@@ -35,6 +35,54 @@
   button.on{background:var(--accent-tint);border-color:var(--accent);color:var(--accent)}
   .count{color:var(--faint);font-size:12px;white-space:nowrap}
 
+  /* ---------- Identity ("editing as ___") ---------- */
+  .whoami{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:8px;
+    border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+  .whoami.viewonly{background:var(--warn-tint);border-color:transparent}
+  .whoami.editing{background:var(--panel-2)}
+  .whoami .who-lbl{color:var(--faint)}
+  .whoami .who-name{font-weight:700;color:var(--ink)}
+  .whoami .who-input{background:var(--bg);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);font:inherit;padding:4px 8px;min-width:148px}
+  .whoami .who-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .whoami button{padding:4px 9px;font-size:11.5px;border-radius:6px}
+  .whoami .who-change{background:transparent;border-color:transparent;color:var(--muted);
+    text-decoration:underline;padding:2px 4px}
+  .whoami .who-change:hover{color:var(--ink);background:transparent}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  body.viewonly tr.add-row{display:none}
+
+  /* ---------- History panel ---------- */
+  .hist-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;
+    align-items:center;justify-content:center;z-index:110;padding:24px}
+  .hist-modal.show{display:flex}
+  .hist-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    width:580px;max-width:100%;max-height:82vh;display:flex;flex-direction:column;
+    box-shadow:0 24px 60px rgba(0,0,0,.55)}
+  .hist-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .hist-head .h-t{font-size:14px;font-weight:600}
+  .hist-head .h-s{color:var(--faint);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist-body{overflow:auto;padding:6px 18px 16px}
+  .hist-empty{color:var(--faint);padding:26px 0;text-align:center}
+  .hist-item{padding:12px 0;border-bottom:1px solid var(--line-soft)}
+  .hist-item:last-child{border-bottom:0}
+  .hist-meta{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+  .hist-act{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 7px;border-radius:5px}
+  .hist-act.hist-insert{background:var(--ok-tint);color:var(--ok)}
+  .hist-act.hist-update{background:var(--accent-tint);color:var(--accent)}
+  .hist-act.hist-delete{background:var(--err-tint);color:var(--err)}
+  .hist-who{font-weight:600}
+  .hist-when{color:var(--faint);font-size:12px;margin-left:auto}
+  .hist-changes{display:flex;flex-direction:column;gap:3px}
+  .hist-row{display:grid;grid-template-columns:150px 1fr auto 1fr;gap:8px;align-items:baseline;
+    font-size:12.5px;font-variant-numeric:tabular-nums}
+  .hist-field{color:var(--muted)}
+  .hist-old{color:var(--faint);text-align:right;overflow:hidden;text-overflow:ellipsis}
+  .hist-arrow{color:var(--faint)}
+  .hist-new{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+  .hist-nofields{color:var(--faint);font-style:italic}
+
   /* ---------- Summary strip ----------
      Grand totals for whatever the filters currently show. Sits between the
      toolbar and the grid; --top (set by layout()) keeps the grid below it. */
@@ -127,8 +175,9 @@
   td.editing .cell{padding:5px 8px}
   .chk{display:flex;align-items:center;justify-content:center;height:100%}
   .chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
-  td.act{border-right:0}
-  .del{background:transparent;border:0;color:var(--faint);padding:6px 8px;border-radius:6px}
+  td.act{border-right:0;white-space:nowrap;text-align:center}
+  .act .hist,.del{background:transparent;border:0;color:var(--faint);padding:6px 5px;border-radius:6px;font-size:12px}
+  .act .hist:hover{color:var(--accent);background:var(--accent-tint)}
   .del:hover{color:var(--err);background:var(--err-tint)}
   tfoot td{position:sticky;bottom:0;background:#211F1D;border-top:1px solid var(--line);
     padding:8px 9px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;z-index:18}
@@ -163,6 +212,7 @@
 
 <div class="bar">
   <h1><span>Ax Billing Tracker</span><span id="modeBadge" class="badge local">Local</span></h1>
+  <div id="whoami" class="whoami"></div>
   <span class="spacer"></span>
   <input id="search" class="search" type="text" placeholder="Filter campaigns, advertisers, entities…">
   <span id="count" class="count"></span>
@@ -219,6 +269,18 @@
 </div>
 
 <div id="dd" class="dd" role="menu"></div>
+
+<div id="histModal" class="hist-modal">
+  <div class="hist-card">
+    <div class="hist-head">
+      <span class="h-t">Change history</span>
+      <span id="histSub" class="h-s"></span>
+      <button id="histClose" class="ghost">Close</button>
+    </div>
+    <div id="histBody" class="hist-body"></div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="config.js"></script>
@@ -264,8 +326,12 @@ const COLS = [
      campaign's original date in the Sheet); "Last updated" is the staleness signal. */
   {k:'created_at',        lt:'AB',label:'Added',              type:'ts',    w:160, meta:true},
   {k:'updated_at',        lt:'AC',label:'Last Updated',       type:'ts',    w:160, meta:true},
+  {k:'updated_by',        lt:'AD',label:'Updated By',         type:'text',  w:140, meta:true, ro:true},
 ];
-const STORED = COLS.filter(c=>!['dtext','dmoney','ts'].includes(c.type)).map(c=>c.k)
+// ro (read-only) columns are stored/displayed but never edited through the grid —
+// updated_by is stamped by the app on write, not typed. Exclude it from STORED too:
+// persist() sets updated_by itself, so it must not ride along in a field patch.
+const STORED = COLS.filter(c=>!['dtext','dmoney','ts'].includes(c.type) && !c.ro).map(c=>c.k)
   .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
 const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1,gross_profit:1,backend_rebate:1,amount_paid:1};
 
@@ -273,6 +339,14 @@ const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1
 const META_KEY = 'ax_billing_show_meta_v1';
 let showMeta = localStorage.getItem(META_KEY)==='1';
 function viewCols(){ return showMeta ? COLS : COLS.filter(c=>!c.meta); }
+
+/* ---------- who's editing ----------
+   No per-person login (one shared PIN), so each editor self-identifies once with
+   their name; it's kept in this browser and stamped onto updated_by on every write.
+   The grid is read-only until a name is set — nobody edits anonymously by accident. */
+const ACTOR_KEY = 'ax_billing_actor';
+let actor = (localStorage.getItem(ACTOR_KEY) || '').trim();
+function canEdit(){ return !!actor; }
 
 /* ---------- formatting ---------- */
 const money = v => v==null||v===''||isNaN(v) ? '' :
@@ -442,11 +516,11 @@ function render(){
   // Set the table's explicit width to the sum of column widths, otherwise the
   // browser proportionally stretches the columns instead of honoring them.
   const VC = viewCols();
-  const totalW = VC.reduce((s,c)=>s+widthOf(c),0) + 38;
+  const totalW = VC.reduce((s,c)=>s+widthOf(c),0) + 58;   // +58 = trailing action col (history + delete)
   $('grid').style.width = totalW + 'px';
   let h = '<colgroup>';
   VC.forEach(c=>{ h += `<col data-cw="${c.k}" style="width:${widthOf(c)}px">`; });
-  h += '<col style="width:38px"></colgroup>';
+  h += '<col style="width:58px"></colgroup>';
 
   h += '<thead><tr>';
   VC.forEach(c=>{
@@ -478,7 +552,7 @@ function render(){
         h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${on?'checked':''}></div></td>`;
         return;
       }
-      const derived = ['dtext','dmoney','ts'].includes(c.type);   // read-only, muted
+      const derived = ['dtext','dmoney','ts'].includes(c.type) || c.ro;   // read-only, muted
       const num = ['money','dmoney','omoney','pct','int'].includes(c.type);
       const val = displayVal(c, r);
       const neg = num && typeof r[c.k]==='number' && r[c.k]<0;
@@ -489,7 +563,9 @@ function render(){
          + (isOv?'<span class="ov-dot" title="Overridden — clear the cell to revert to the formula"></span>':'')
          + `<div class="${cls}">${val===''?ph:esc(val)}</div></td>`;
     });
-    h += '<td class="act"><button class="del" title="Delete row">✕</button></td>';
+    h += '<td class="act">'
+       + '<button class="hist" title="View change history">🕘</button>'
+       + '<button class="del" title="Delete row">✕</button></td>';
     h += '</tr>';
   });
   // "+ Add row" — sticky-left cell that always stays visible while scrolling
@@ -523,7 +599,7 @@ function requestReload(){ if(editingActive){ pendingReload = true; } else reload
 function beginEdit(td){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
-  if(['dtext','dmoney','ts','chkna'].includes(col.type)) return;  // read-only / checkbox-only
+  if(['dtext','dmoney','ts','chkna'].includes(col.type) || col.ro) return;  // read-only / checkbox-only
   const row = rows.find(r=>r.id===id); if(!row) return;
   if(td.classList.contains('editing')) return;
 
@@ -579,6 +655,7 @@ function persist(row, keys){
   const patch = {};
   (keys || STORED).forEach(k=>{ if(k!=='id' && row[k]!==undefined) patch[k]=row[k]; });
   if(!Object.keys(patch).length) return;
+  patch.updated_by = actor;                  // who made this change (for the history log)
   store.update(row.id, patch).catch(err=>toast('Save failed: '+err.message, false));
 }
 
@@ -587,14 +664,24 @@ $('wrap').addEventListener('click', e=>{
   if(e.target.closest('.resizer')) return;                       // resize handled separately
   const th = e.target.closest('th[data-sk]');
   if(th){ openDropdown(th.dataset.sk, th); return; }
-  if(e.target.closest('[data-add-row]')){ addRow(); return; }
+  // History is read-only — anyone can open it, no name required.
+  const hbtn = e.target.closest('.hist');
+  if(hbtn){ openHistory(hbtn.closest('tr').dataset.id); return; }
+  if(e.target.closest('[data-add-row]')){ if(requireEdit()) addRow(); return; }
   const del = e.target.closest('.del');
-  if(del){ const tr=del.closest('tr'); if(confirm('Delete this row?')){ store.remove(tr.dataset.id).then(reload); } return; }
+  if(del){ if(!requireEdit()) return;
+    const id=del.closest('tr').dataset.id;
+    if(confirm('Delete this row?')){
+      // stamp who deleted it first, so the history 'delete' entry names the actor
+      // (not just whoever last edited the row). The touch-only update logs nothing.
+      store.update(id, {updated_by:actor}).then(()=>store.remove(id)).then(reload); }
+    return; }
   const chk = e.target.closest('.chk input');
-  if(chk){ const tr=chk.closest('tr'); const k=chk.closest('td').dataset.k;
+  if(chk){ if(!requireEdit()){ chk.checked = !chk.checked; return; }   // revert the visual toggle
+    const tr=chk.closest('tr'); const k=chk.closest('td').dataset.k;
     const row=rows.find(r=>r.id===tr.dataset.id); if(row){ row[k]=chk.checked; persist(row, [k]); } return; }
   const td = e.target.closest('td[data-k]');
-  if(td && !e.target.closest('.chk')) beginEdit(td);
+  if(td && !e.target.closest('.chk')){ if(requireEdit()) beginEdit(td); }
 });
 $('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
 $('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; closeDropdown(); render(); };
@@ -602,15 +689,128 @@ $('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; c
 function newRow(seed){
   const max = rows.reduce((m,r)=>Math.max(m, r.sort_order||0), 0);
   return Object.assign({ rebate_pct:0.15, source:'manual', sort_order:max+1,
-    io_paid:false, rebate_paid:false, bill_direct:false }, seed||{});
+    io_paid:false, rebate_paid:false, bill_direct:false, updated_by:actor }, seed||{});
 }
 function addRow(seed){
+  if(!requireEdit()) return;
   store.upsert(newRow(seed)).then(()=>reload().then(()=>{
     const w=$('wrap'); w.scrollTop=w.scrollHeight;
   }));
 }
 $('addBtn').onclick = ()=>addRow();
 $('emptyAdd').onclick = ()=>addRow();
+
+/* ---------- identity: "editing as ___" ---------- */
+function syncWhoami(){
+  const el = $('whoami');
+  if(actor){
+    el.className = 'whoami editing';
+    el.innerHTML = `<span class="who-lbl">✎ Editing as</span>`
+      + `<span class="who-name">${esc(actor)}</span>`
+      + `<button class="who-change" title="Switch to a different name">change</button>`;
+  } else {
+    el.className = 'whoami viewonly';
+    el.innerHTML = `<span class="who-lbl">🔒 View only —</span>`
+      + `<input class="who-input" placeholder="your name to edit" maxlength="40" autocomplete="off">`
+      + `<button class="who-go primary">Start editing</button>`;
+  }
+  document.body.classList.toggle('viewonly', !actor);
+  const add=$('addBtn'); if(add) add.disabled = !actor;
+}
+function setActor(name){
+  actor = (name||'').trim();
+  if(actor) localStorage.setItem(ACTOR_KEY, actor); else localStorage.removeItem(ACTOR_KEY);
+  syncWhoami();
+}
+function commitName(){
+  const i = $('whoami').querySelector('.who-input'); if(!i) return;
+  const v = i.value.trim(); if(!v){ i.focus(); return; }
+  setActor(v); toast(`You're now editing as ${v}`, true);
+}
+/* Called by every edit path: true if a name is set, otherwise nudge the user to
+   the name field and block the edit. Read-only actions (sort, filter, history)
+   don't call this. */
+function requireEdit(){
+  if(actor) return true;
+  const i = $('whoami').querySelector('.who-input'); if(i) i.focus();
+  toast('Enter your name (top-left) to start editing.', false);
+  return false;
+}
+$('whoami').addEventListener('click', e=>{
+  if(e.target.closest('.who-change')){ setActor(''); const i=$('whoami').querySelector('.who-input'); if(i) i.focus(); return; }
+  if(e.target.closest('.who-go')) commitName();
+});
+$('whoami').addEventListener('keydown', e=>{
+  if(e.target.classList.contains('who-input') && e.key==='Enter'){ e.preventDefault(); commitName(); }
+});
+
+/* ---------- per-row change history ---------- */
+// Map a raw snapshot field key to a human label + how to format it. Override
+// columns (…_override) map to their parent column's label. Derived and bookkeeping
+// fields return null so the diff ignores them.
+function histFieldMeta(key){
+  for(const c of COLS){
+    if(c.k===key && !['dtext','dmoney','ts'].includes(c.type)) return {label:c.label, type:c.type};
+    if(c.ov===key) return {label:c.label+' (override)', type:'money'};
+  }
+  return null;
+}
+function fmtHistVal(type, v){
+  if(v===null||v===undefined||v==='') return '—';
+  switch(type){
+    case 'money': case 'dmoney': case 'omoney': return money(v);
+    case 'pct': return pctFmt(v);
+    case 'ts':  return tsFmt(v);
+    case 'bool':return v?'Yes':'No';
+    default:    return String(v);
+  }
+}
+const HIST_SKIP = {updated_at:1,updated_by:1,created_at:1,id:1,sort_order:1,source:1,campaign_label:1};
+function diffRows(oldD, newD){
+  const keys={}; Object.keys(oldD||{}).forEach(k=>keys[k]=1); Object.keys(newD||{}).forEach(k=>keys[k]=1);
+  let out='';
+  Object.keys(keys).forEach(k=>{
+    if(HIST_SKIP[k]) return;
+    const fm = histFieldMeta(k); if(!fm) return;
+    const a = oldD?oldD[k]:undefined, b = newD?newD[k]:undefined;
+    if(JSON.stringify(a)===JSON.stringify(b)) return;
+    out += `<div class="hist-row"><span class="hist-field">${esc(fm.label)}</span>`
+         + `<span class="hist-old">${esc(fmtHistVal(fm.type,a))}</span>`
+         + `<span class="hist-arrow">→</span>`
+         + `<span class="hist-new">${esc(fmtHistVal(fm.type,b))}</span></div>`;
+  });
+  return out;
+}
+function openHistory(id){
+  const row = rows.find(r=>r.id===id);
+  $('histSub').textContent = row ? (row.campaign_name || row.campaign_label || '(unnamed row)') : '';
+  $('histBody').innerHTML = '<div class="hist-empty">Loading…</div>';
+  $('histModal').classList.add('show');
+  store.history(id)
+    .then(entries=>renderHistory(entries))
+    .catch(err=>{ $('histBody').innerHTML = `<div class="hist-empty">Couldn't load history: ${esc(err.message||err)}</div>`; });
+}
+function renderHistory(entries){
+  if(!entries.length){ $('histBody').innerHTML = '<div class="hist-empty">No changes recorded yet.</div>'; return; }
+  let h='';
+  entries.forEach(e=>{
+    const when = tsFmt(e.changed_at);
+    const who  = e.actor ? esc(e.actor) : '<span style="color:var(--faint)">unknown</span>';
+    let label, body='';
+    if(e.action==='insert'){ label='Created'; body=diffRows({}, e.new_data); }
+    else if(e.action==='delete'){ label='Deleted'; }
+    else { label='Edited'; body=diffRows(e.old_data, e.new_data); }
+    if(e.action!=='delete' && !body) body='<div class="hist-nofields">(no tracked fields changed)</div>';
+    h += `<div class="hist-item"><div class="hist-meta">`
+       + `<span class="hist-act hist-${e.action}">${label}</span>`
+       + `<span class="hist-who">${who}</span><span class="hist-when">${esc(when)}</span></div>`
+       + (body?`<div class="hist-changes">${body}</div>`:'') + `</div>`;
+  });
+  $('histBody').innerHTML = h;
+}
+function closeHistory(){ $('histModal').classList.remove('show'); }
+$('histClose').onclick = closeHistory;
+$('histModal').addEventListener('mousedown', e=>{ if(e.target.id==='histModal') closeHistory(); });
 
 /* ---------- audit columns toggle ---------- */
 function syncMetaBtn(){
@@ -626,6 +826,7 @@ $('metaBtn').onclick = ()=>{
   if(showMeta){ const w=$('wrap'); w.scrollLeft = w.scrollWidth; }
 };
 syncMetaBtn();
+syncWhoami();
 
 /* ---------- import (local testing) ---------- */
 function doImport(){
@@ -743,7 +944,7 @@ function drainInbox(){
       io_amount:it.io_amount!=null?+it.io_amount:null,
       campaign_start:it.start||null, campaign_end:it.end||null,
       year:it.year || (it.start? +String(it.start).slice(0,4):null),
-      source:'io-tool', sort_order: maxSort + 1 + i
+      source:'io-tool', updated_by:'IO Tool', sort_order: maxSort + 1 + i
     });
     seed.campaign_name = Rebate.composeName(seed);
     return seed;
@@ -864,7 +1065,7 @@ document.addEventListener('mousedown', e=>{
   if(e.target.closest('#dd') || e.target.closest('th[data-sk]')) return;
   closeDropdown();
 });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDropdown(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeHistory(); } });
 
 /* ---------- column resize ---------- */
 $('wrap').addEventListener('pointerdown', e=>{
@@ -882,7 +1083,7 @@ $('wrap').addEventListener('pointerdown', e=>{
     const w = Math.max(48, Math.round(startW + (ev.clientX - startX)));
     col.style.width = w + 'px';
     colWidths[key] = w;
-    const total = viewCols().reduce((s,c)=>s+widthOf(c),0) + 38;
+    const total = viewCols().reduce((s,c)=>s+widthOf(c),0) + 58;
     $('grid').style.width = total + 'px';
   }
   function onUp(){
