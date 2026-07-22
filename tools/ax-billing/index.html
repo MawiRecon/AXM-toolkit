@@ -151,6 +151,16 @@
   .dd .item.disabled{color:var(--faint);cursor:default}
   .dd .item.disabled:hover{background:transparent}
   .dd .sep{height:1px;background:var(--line-soft);margin:5px 4px}
+  /* views menu extras (reuses .dd shell) */
+  .dd .vm-sec{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--faint);padding:6px 10px 3px}
+  .dd .item.active{color:var(--accent)}
+  .dd .item .vm-check{margin-left:auto;color:var(--accent);font-size:12px}
+  .dd .item.vm-saved{gap:8px}
+  .dd .item.vm-saved .vm-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dd .item.vm-saved .vm-del{flex:0 0 auto;background:transparent;border:0;color:var(--faint);
+    padding:2px 6px;border-radius:5px;font-size:13px;line-height:1}
+  .dd .item.vm-saved .vm-del:hover{color:var(--err);background:var(--err-tint)}
   .dd .search-in{width:calc(100% - 4px);margin:2px 2px 6px;padding:6px 9px;border-radius:6px;
     border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:inherit}
   .dd .search-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
@@ -234,6 +244,7 @@
   <span class="spacer"></span>
   <input id="search" class="search" type="text" placeholder="Filter campaigns, advertisers, entities…">
   <span id="count" class="count"></span>
+  <button id="viewsBtn" class="ghost" title="Date-range presets and saved views">Views ▾</button>
   <button id="addBtn" class="primary">+ Add row</button>
   <button id="metaBtn" class="ghost" title="Show when each row was added and last changed">Timestamps</button>
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
@@ -288,6 +299,7 @@
 </div>
 
 <div id="dd" class="dd" role="menu"></div>
+<div id="viewsMenu" class="dd" role="menu"></div>
 
 <div id="histModal" class="hist-modal">
   <div class="hist-card">
@@ -395,6 +407,38 @@ const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&l
 /* ---------- state ---------- */
 let store, rows=[], filter='', sortKey=null, sortDir=1;
 let filters = {};                          // colKey -> Set(filterKey) OR undefined = no filter
+let dateView = null;                       // active date preset key (filters on campaign_end), or null
+
+/* ---------- views ----------
+   Date presets are relative to today and computed at apply time. Custom saved
+   views are per-browser (localStorage): they're personal working states, change
+   often, and need no schema/SQL. The 5 date presets already cover the shared
+   team-wide needs; a saved view snapshots search + column filters + sort + preset. */
+const DATE_VIEWS = [
+  {k:'current-month',   label:'Current Month'},
+  {k:'prev-month',      label:'Previous Month'},
+  {k:'current-quarter', label:'Current Quarter'},
+  {k:'prev-quarter',    label:'Previous Quarter'},
+  {k:'ytd',             label:'Year to Date'},
+];
+const VIEWS_KEY = 'ax_billing_views_v1';
+function loadViews(){ try{ const v=JSON.parse(localStorage.getItem(VIEWS_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function saveViews(v){ localStorage.setItem(VIEWS_KEY, JSON.stringify(v)); }
+// [startISO, endISO] on campaign_end for a preset, computed from today (local time).
+function viewDateRange(v){
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const first = (yy,mm)=> new Date(yy,mm,1), last = (yy,mm)=> new Date(yy,mm+1,0);   // day 0 of next month
+  switch(v){
+    case 'current-month':   return [iso(first(y,m)), iso(last(y,m))];
+    case 'prev-month':      { const pm=m===0?11:m-1, py=m===0?y-1:y; return [iso(first(py,pm)), iso(last(py,pm))]; }
+    case 'current-quarter': { const q=Math.floor(m/3); return [iso(first(y,q*3)), iso(last(y,q*3+2))]; }
+    case 'prev-quarter':    { let q=Math.floor(m/3)-1, yy=y; if(q<0){ q=3; yy=y-1; } return [iso(first(yy,q*3)), iso(last(yy,q*3+2))]; }
+    case 'ytd':             return [iso(first(y,0)), iso(now)];
+    default: return null;
+  }
+}
+function dateViewLabel(v){ const d=DATE_VIEWS.find(x=>x.k===v); return d?d.label:''; }
 const COL_W_KEY = 'ax_billing_col_widths_v1';
 let colWidths = (()=>{ try{ return JSON.parse(localStorage.getItem(COL_W_KEY)||'{}'); }catch(e){ return {}; }})();
 function widthOf(c){ return colWidths[c.k] || c.w; }
@@ -438,6 +482,10 @@ function currentList(){
     const allowed = filters[k];
     list = list.filter(r=> allowed.has(filterKey(r[k])));
   }
+  if(dateView){                              // date preset: campaign_end within the range
+    const range = viewDateRange(dateView);
+    if(range) list = list.filter(r=> r.campaign_end && r.campaign_end>=range[0] && r.campaign_end<=range[1]);
+  }
   if(sortKey){
     const dir = sortDir;
     list.sort((a,b)=>{
@@ -451,7 +499,7 @@ function currentList(){
   }
   return list;
 }
-function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0); }
+function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0) + (dateView?1:0); }
 
 /* ---------- summary strip ----------
    Everything here is computed from the SAME list the grid renders, so the
@@ -533,6 +581,7 @@ function render(){
     ? `Export just the ${shown} row${shown===1?'':'s'} matching your current filters, in the order shown`
     : 'Export all rows';
   $('exportBtn').classList.toggle('on', filt);
+  syncViewsBtn();
   // Import button is a one-time seed tool — hide the moment there's any data
   const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
   $('empty').style.display = total===0 ? 'flex':'none';
@@ -786,7 +835,7 @@ $('wrap').addEventListener('click', e=>{
   }
 });
 $('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
-$('clearFilters').onclick = ()=>{ filters={}; filter=''; $('search').value=''; closeDropdown(); render(); };
+$('clearFilters').onclick = ()=>{ filters={}; filter=''; dateView=null; $('search').value=''; closeDropdown(); render(); };
 
 /* ---------- keyboard navigation (Google Sheets-style) ----------
    Arrows move the active cell; Enter/type edits it; Enter commits + moves down,
@@ -798,6 +847,7 @@ document.addEventListener('keydown', e=>{
   if($('histModal').classList.contains('show')) return;       // history modal open
   if($('trashModal').classList.contains('show')) return;      // trash modal open
   if($('dd').classList.contains('show')) return;              // header dropdown open
+  if($('viewsMenu').classList.contains('show')) return;       // views menu open
   const ae = document.activeElement;                          // don't hijack keys meant for other controls
   if(ae && ae!==document.body && !$('wrap').contains(ae)) return;
   if(!rows.length) return;
@@ -1069,6 +1119,75 @@ $('trashBtn').onclick = openTrash;
 $('trashClose').onclick = closeTrash;
 $('trashModal').addEventListener('mousedown', e=>{ if(e.target.id==='trashModal') closeTrash(); });
 
+/* ---------- Views menu (date presets + per-browser saved views) ---------- */
+function syncViewsBtn(){
+  const b=$('viewsBtn');
+  b.textContent = (dateView ? 'Views · '+dateViewLabel(dateView) : 'Views') + ' ▾';
+  b.classList.toggle('on', !!dateView);
+}
+function renderViewsMenu(){
+  const saved = loadViews();
+  let h = `<div class="vm-sec">Date ranges (by End date)</div>`;
+  DATE_VIEWS.forEach(d=>{
+    const on = dateView===d.k;
+    h += `<div class="item ${on?'active':''}" data-view="${d.k}">${esc(d.label)}${on?'<span class="vm-check">✓</span>':''}</div>`;
+  });
+  h += `<div class="sep"></div><div class="vm-sec">Saved views</div>`;
+  h += saved.length
+    ? saved.map(v=>`<div class="item vm-saved" data-id="${esc(v.id)}"><span class="vm-name">${esc(v.name)}</span>`
+        + `<button class="vm-del" title="Delete this view">✕</button></div>`).join('')
+    : `<div class="item disabled">None yet — filter/sort, then save</div>`;
+  h += `<div class="sep"></div><div class="item" data-act="save">＋ Save current view…</div>`;
+  if(activeFilterCount()) h += `<div class="item" data-act="clear">✕ Clear filters &amp; view</div>`;
+  $('viewsMenu').innerHTML = h;
+}
+function openViewsMenu(){
+  const menu=$('viewsMenu');
+  if(menu.classList.contains('show')){ closeViewsMenu(); return; }
+  closeDropdown();
+  renderViewsMenu();
+  menu.classList.add('show');
+  const r=$('viewsBtn').getBoundingClientRect();
+  const w=menu.offsetWidth||270;
+  menu.style.left = Math.max(6, Math.min(r.left, window.innerWidth - w - 6)) + 'px';
+  // clamp to >=6 so the menu can never render off-screen above the viewport
+  menu.style.top  = Math.max(6, Math.min(window.innerHeight - menu.offsetHeight - 6, r.bottom + 4)) + 'px';
+}
+function closeViewsMenu(){ $('viewsMenu').classList.remove('show'); }
+function applyDateView(v){ dateView = (dateView===v ? null : v); closeViewsMenu(); render(); }   // re-pick toggles off
+function applySavedView(id){
+  const v = loadViews().find(x=>x.id===id); if(!v) return;
+  const s = v.state||{};
+  filter = s.filter||''; $('search').value = filter;
+  filters = {}; Object.keys(s.filters||{}).forEach(k=> filters[k]=new Set(s.filters[k]));
+  sortKey = s.sortKey||null; sortDir = s.sortDir||1; dateView = s.dateView||null;
+  closeViewsMenu(); render();
+}
+function saveCurrentView(){
+  const name = (prompt('Name this view:')||'').trim(); if(!name) return;
+  const ser = {}; Object.keys(filters).forEach(k=> ser[k] = [...filters[k]]);
+  const views = loadViews();
+  views.push({ id: (crypto.randomUUID ? crypto.randomUUID() : 'v'+Date.now()),
+    name, state:{ filter, filters:ser, sortKey, sortDir, dateView } });
+  saveViews(views); toast(`Saved view: ${name}`, true); renderViewsMenu();
+}
+function deleteSavedView(id){ saveViews(loadViews().filter(v=>v.id!==id)); renderViewsMenu(); }
+$('viewsBtn').onclick = openViewsMenu;
+$('viewsMenu').addEventListener('click', e=>{
+  const del = e.target.closest('.vm-del');
+  if(del){ e.stopPropagation(); deleteSavedView(del.closest('[data-id]').dataset.id); return; }
+  const dv = e.target.closest('[data-view]'); if(dv){ applyDateView(dv.dataset.view); return; }
+  const sv = e.target.closest('.vm-saved[data-id]'); if(sv){ applySavedView(sv.dataset.id); return; }
+  const act = e.target.closest('[data-act]'); if(!act) return;
+  if(act.dataset.act==='save') saveCurrentView();                       // saving a view is a local pref, no edit gate
+  else if(act.dataset.act==='clear'){ filters={}; filter=''; dateView=null; $('search').value=''; closeViewsMenu(); render(); }
+});
+document.addEventListener('mousedown', e=>{
+  const vm=$('viewsMenu'); if(!vm.classList.contains('show')) return;
+  if(e.target.closest('#viewsMenu') || e.target.closest('#viewsBtn')) return;
+  closeViewsMenu();
+});
+
 /* ---------- audit columns toggle ---------- */
 function syncMetaBtn(){
   const b = $('metaBtn');
@@ -1322,7 +1441,7 @@ document.addEventListener('mousedown', e=>{
   if(e.target.closest('#dd') || e.target.closest('th[data-sk]')) return;
   closeDropdown();
 });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeHistory(); closeTrash(); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeViewsMenu(); closeHistory(); closeTrash(); } });
 
 /* ---------- column resize ---------- */
 $('wrap').addEventListener('pointerdown', e=>{
