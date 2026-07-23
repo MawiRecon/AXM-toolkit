@@ -41,8 +41,6 @@ const TOOLS = [
 
 const nav       = document.getElementById('nav');
 const frame     = document.getElementById('toolFrame');
-const titleEl   = document.getElementById('toolTitle');
-const crumbEl   = document.getElementById('toolCrumb');
 const openNew   = document.getElementById('openNew');
 const collapseBtn = document.getElementById('collapseBtn');
 
@@ -86,9 +84,7 @@ function activate(tool) {
   const abs = new URL(target, location.href).href;
   if (frame.src !== abs) frame.src = target;
 
-  titleEl.textContent = tool.name;
-  crumbEl.textContent = tool.desc;
-  openNew.href = busted(tool.src);
+  openNew.href = busted(tool.src);   // the sidebar "Open in new tab" points at the active tool
 
   for (const id in links) links[id].classList.toggle('active', id === tool.id);
   document.title = tool.name + ' · AXM Toolkit';

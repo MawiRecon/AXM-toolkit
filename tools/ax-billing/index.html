@@ -272,11 +272,6 @@
     <div class="val" id="statBudget">—</div>
     <div class="sub" id="statBudgetSub"></div>
   </div>
-  <div class="stat">
-    <div class="lab">Average Margin</div>
-    <div class="val" id="statMargin">—</div>
-    <div class="sub" id="statMarginSub"></div>
-  </div>
   <div class="scope"><span id="statScope"></span><button id="clearFilters" title="Clear the search box and every column filter">Clear</button></div>
 </div>
 
@@ -515,7 +510,6 @@ function renderStats(list, total){
   const spend   = sum(nums('actual_spend'));
   const backend = nums('backend_rebate');
   const budget  = nums('io_amount');
-  const margin  = nums('margin');
 
   /* Show a total only when something actually feeds it — an em dash beats a
      confident $0.00 over rows that simply have nothing entered yet. Negatives
@@ -547,12 +541,6 @@ function renderStats(list, total){
     budget.length
       ? budget.length+' campaign'+(budget.length===1?'':'s')+' with an IO amount'
       : 'No IO amounts in view');
-
-  const avgMargin = margin.length ? sum(margin)/margin.length : 0;
-  put('statMargin', margin.length, {text:pctFmt(avgMargin), n:avgMargin},
-    margin.length
-      ? 'Average of '+margin.length+' of '+list.length+' row'+(list.length===1?'':'s')
-      : 'No margins in view');
 
   const filtered = activeFilterCount()>0;
   $('stats').classList.toggle('filtered', filtered);
