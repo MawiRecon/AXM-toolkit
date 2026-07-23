@@ -64,6 +64,10 @@
   .hist-head .h-s{color:var(--faint);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hist-body{overflow:auto;padding:6px 18px 16px}
   .hist-empty{color:var(--faint);padding:26px 0;text-align:center}
+  .hist-summary{display:flex;flex-wrap:wrap;gap:6px 22px;padding:11px 0 12px;margin-bottom:4px;
+    border-bottom:1px solid var(--line-soft);font-size:12.5px;color:var(--ink)}
+  .hist-summary .hs-lbl{color:var(--faint);margin-right:5px}
+  .hist-summary .hs-by{font-weight:600}
   .hist-item{padding:12px 0;border-bottom:1px solid var(--line-soft)}
   .hist-item:last-child{border-bottom:0}
   .hist-meta{display:flex;align-items:center;gap:9px;margin-bottom:6px}
@@ -246,7 +250,6 @@
   <span id="count" class="count"></span>
   <button id="viewsBtn" class="ghost" title="Date-range presets and saved views">Views ▾</button>
   <button id="addBtn" class="primary">+ Add row</button>
-  <button id="metaBtn" class="ghost" title="Show when each row was added and last changed">Timestamps</button>
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
   <button id="exportBtn" class="ghost">Export CSV</button>
   <button id="trashBtn" class="ghost" title="View and restore deleted rows">Trash</button>
@@ -377,10 +380,10 @@ const STORED = COLS.filter(c=>!['dtext','dmoney','ts'].includes(c.type) && !c.ro
   .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
 const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1,gross_profit:1,backend_rebate:1,amount_paid:1};
 
-/* Audit columns stay collapsed until asked for; the choice sticks per browser. */
-const META_KEY = 'ax_billing_show_meta_v1';
-let showMeta = localStorage.getItem(META_KEY)==='1';
-function viewCols(){ return showMeta ? COLS : COLS.filter(c=>!c.meta); }
+/* Audit fields (Added / Last Updated / Updated By) are meta:true. They live in the
+   History panel now — not the grid — so viewCols() never shows them. They stay in
+   COLS on purpose: CSV export iterates COLS, so exported data keeps its audit trail. */
+function viewCols(){ return COLS.filter(c=>!c.meta); }
 
 /* ---------- who's editing ----------
    No per-person login (one shared PIN), so each editor self-identifies once with
@@ -1058,12 +1061,26 @@ function openHistory(id){
   $('histBody').innerHTML = '<div class="hist-empty">Loading…</div>';
   $('histModal').classList.add('show');
   store.history(id)
-    .then(entries=>renderHistory(entries))
+    .then(entries=>renderHistory(entries, row))
     .catch(err=>{ $('histBody').innerHTML = `<div class="hist-empty">Couldn't load history: ${esc(err.message||err)}</div>`; });
 }
-function renderHistory(entries){
-  if(!entries.length){ $('histBody').innerHTML = '<div class="hist-empty">No changes recorded yet.</div>'; return; }
-  let h='';
+// Added / Last updated / Updated by — read straight off the row (always present, even
+// for rows imported before change-tracking existed). This is where the old grid
+// timestamp columns moved to.
+function historySummary(row){
+  if(!row) return '';
+  const added = row.created_at ? tsFmt(row.created_at) : '—';
+  const upd   = row.updated_at ? tsFmt(row.updated_at) : '—';
+  const by    = row.updated_by ? ' by <span class="hs-by">'+esc(row.updated_by)+'</span>' : '';
+  return `<div class="hist-summary">`
+       + `<div><span class="hs-lbl">Added</span> ${esc(added)}</div>`
+       + `<div><span class="hs-lbl">Last updated</span> ${esc(upd)}${by}</div>`
+       + `</div>`;
+}
+function renderHistory(entries, row){
+  const summary = historySummary(row);
+  if(!entries.length){ $('histBody').innerHTML = summary + '<div class="hist-empty">No individual field changes recorded yet.</div>'; return; }
+  let h = summary;
   entries.forEach(e=>{
     const when = tsFmt(e.changed_at);
     const who  = e.actor ? esc(e.actor) : '<span style="color:var(--faint)">unknown</span>';
@@ -1188,20 +1205,6 @@ document.addEventListener('mousedown', e=>{
   closeViewsMenu();
 });
 
-/* ---------- audit columns toggle ---------- */
-function syncMetaBtn(){
-  const b = $('metaBtn');
-  b.textContent = showMeta ? 'Hide timestamps' : 'Timestamps';
-  b.classList.toggle('on', showMeta);
-}
-$('metaBtn').onclick = ()=>{
-  showMeta = !showMeta;
-  localStorage.setItem(META_KEY, showMeta?'1':'0');
-  syncMetaBtn(); render();
-  // they live past the right edge of a wide grid — scroll them into view
-  if(showMeta){ const w=$('wrap'); w.scrollLeft = w.scrollWidth; }
-};
-syncMetaBtn();
 syncWhoami();
 
 /* ---------- import (local testing) ---------- */
