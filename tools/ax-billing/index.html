@@ -114,6 +114,69 @@
   .scope button{padding:2px 8px;font-size:11px;font-weight:600;border-radius:999px;
     background:transparent;border-color:transparent;color:var(--accent)}
   .scope button:hover{background:var(--panel);border-color:transparent}
+  .flag-tally{flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;gap:6px;
+    padding:6px 12px;border-radius:999px;background:var(--err-tint);color:var(--err);
+    border:1px solid transparent;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
+  .flag-tally:hover{border-color:var(--err)}
+  .flag-tally.active{background:var(--err);color:#fff}
+
+  /* ---------- Flag cell indicators ---------- */
+  td.flagcell{text-align:center;cursor:pointer}
+  .flag-ind{display:inline-flex;align-items:center;gap:1px;justify-content:center;font-size:14px;line-height:1;
+    width:100%;height:100%;min-height:30px}
+  .flag-ind.open{color:var(--err)}
+  .flag-ind.open b{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
+  .flag-ind.has{color:var(--muted);font-size:13px}
+  .flag-ind.empty{color:var(--line);font-size:14px}
+  td.flagcell:hover .flag-ind.empty{color:var(--faint)}
+
+  /* ---------- Flags & notes popover ---------- */
+  .flag-pop{position:fixed;z-index:80;width:340px;max-width:calc(100vw - 12px);
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 18px 44px rgba(0,0,0,.55);display:none;flex-direction:column;max-height:70vh;
+    text-transform:none;letter-spacing:normal;color:var(--ink);font-size:12.5px}
+  .flag-pop.show{display:flex}
+  .fp-head{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--line-soft)}
+  .fp-title{font-weight:600}
+  .fp-sub{flex:1;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fp-close{background:transparent;border:0;color:var(--faint);padding:2px 6px;border-radius:5px;cursor:pointer;font-size:13px}
+  .fp-close:hover{color:var(--ink);background:var(--panel-2)}
+  .fp-body{overflow-y:auto;padding:4px 13px}
+  .fp-empty{color:var(--faint);padding:16px 0;text-align:center}
+  .fp-thread{padding:11px 0;border-bottom:1px solid var(--line-soft)}
+  .fp-thread.resolved{opacity:.62}
+  .fp-c-head{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .fp-kind{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:4px}
+  .fp-kind.fp-flag{background:var(--err-tint);color:var(--err)}
+  .fp-kind.fp-note{background:var(--panel-2);color:var(--muted)}
+  .fp-author{font-weight:600}
+  .fp-when{color:var(--faint);font-size:11px;margin-left:auto}
+  .fp-c-body{white-space:pre-wrap;word-break:break-word;line-height:1.4}
+  .fp-reply{margin:6px 0 0 12px;padding-left:9px;border-left:2px solid var(--line-soft)}
+  .fp-reply .fp-when{margin-left:8px}
+  .fp-actions{display:flex;align-items:center;gap:8px;margin-top:7px}
+  .fp-resolved{color:var(--ok);font-size:11.5px;margin-right:auto}
+  .fp-btn{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:3px 10px;border-radius:6px;font:inherit;font-size:11.5px;cursor:pointer}
+  .fp-btn:hover{border-color:var(--border-strong)}
+  .fp-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;margin-left:auto}
+  .fp-replybox{display:flex;gap:6px;margin-top:7px}
+  .fp-reply-input{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);font:inherit;padding:5px 9px}
+  .fp-reply-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .fp-send{flex:0 0 auto;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    color:var(--muted);padding:5px 9px;cursor:pointer}
+  .fp-send:hover{color:var(--ink);border-color:var(--border-strong)}
+  .fp-composer{padding:11px 13px;border-top:1px solid var(--line-soft);background:var(--panel)}
+  .fp-new-body{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+    color:var(--ink);font:inherit;padding:8px 10px;resize:vertical;min-height:38px}
+  .fp-new-body:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .fp-composer-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .fp-kindsel{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .fp-kbtn{background:transparent;border:0;color:var(--muted);padding:5px 10px;font:inherit;font-size:11.5px;cursor:pointer}
+  .fp-kbtn.active{background:var(--accent-tint);color:var(--accent);font-weight:600}
+  .fp-add{margin-left:auto}
+  .fp-hint{color:var(--faint);font-size:10.5px;margin-top:7px;line-height:1.35}
 
   /* ---------- Grid ---------- */
   .wrap{position:absolute;inset:var(--top,57px) 0 0 0;overflow:auto}
@@ -272,6 +335,7 @@
     <div class="val" id="statBudget">—</div>
     <div class="sub" id="statBudgetSub"></div>
   </div>
+  <button id="flagTally" class="flag-tally" style="display:none" title="Show only rows with an open flag"></button>
   <div class="scope"><span id="statScope"></span><button id="clearFilters" title="Clear the search box and every column filter">Clear</button></div>
 </div>
 
@@ -298,6 +362,7 @@
 
 <div id="dd" class="dd" role="menu"></div>
 <div id="viewsMenu" class="dd" role="menu"></div>
+<div id="flagPop" class="flag-pop"></div>
 
 <div id="histModal" class="hist-modal">
   <div class="hist-card">
@@ -367,11 +432,15 @@ const COLS = [
   {k:'created_at',        lt:'AB',label:'Added',              type:'ts',    w:160, meta:true},
   {k:'updated_at',        lt:'AC',label:'Last Updated',       type:'ts',    w:160, meta:true},
   {k:'updated_by',        lt:'AD',label:'Updated By',         type:'text',  w:140, meta:true, ro:true},
+  // Flags & notes — no row data of its own; the cell reflects this row's comment
+  // threads (see billing_comments). Sits last, just before the History/delete column.
+  {k:'_flag',             lt:'',  label:'Flag',               type:'flag',  w:58},
 ];
 // ro (read-only) columns are stored/displayed but never edited through the grid —
 // updated_by is stamped by the app on write, not typed. Exclude it from STORED too:
 // persist() sets updated_by itself, so it must not ride along in a field patch.
-const STORED = COLS.filter(c=>!['dtext','dmoney','ts'].includes(c.type) && !c.ro).map(c=>c.k)
+// 'flag' is a virtual column (comments live in a separate table) — never stored.
+const STORED = COLS.filter(c=>!['dtext','dmoney','ts','flag'].includes(c.type) && !c.ro).map(c=>c.k)
   .concat(['backend_rebate_override','difference_owed_override','campaign_label','source','sort_order','id']);
 const TOTALCOLS = {io_amount:1,actual_spend:1,rebate_value:1,sent_to_grapeseed:1,gross_profit:1,backend_rebate:1,amount_paid:1};
 
@@ -406,6 +475,39 @@ const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&l
 let store, rows=[], filter='', sortKey=null, sortDir=1;
 let filters = {};                          // colKey -> Set(filterKey) OR undefined = no filter
 let dateView = null;                       // active date preset key (filters on campaign_end), or null
+let comments = [];                         // billing_comments (flags & notes) for all rows
+let flagOnly = false;                      // when true, grid shows only rows with an open flag
+
+/* ---------- flags & notes helpers ---------- */
+function commentsFor(rowId){ return comments.filter(c=>c.row_id===rowId); }
+// thread roots (parent_id null) for a row, each with its replies attached, newest thread first
+function threadsFor(rowId){
+  const mine = commentsFor(rowId);
+  const roots = mine.filter(c=>!c.parent_id).sort((a,b)=> a.created_at<b.created_at?1:-1);
+  return roots.map(r=>({ root:r, replies: mine.filter(c=>c.parent_id===r.id).sort((a,b)=> a.created_at<b.created_at?-1:1) }));
+}
+function openFlagsFor(rowId){ return commentsFor(rowId).filter(c=>!c.parent_id && c.kind==='flag' && !c.resolved_at).length; }
+// total open flags across ACTIVE rows only (deleted rows' flags don't nag)
+function openFlagCount(){
+  const active = new Set(rows.map(r=>r.id));
+  return comments.filter(c=>!c.parent_id && c.kind==='flag' && !c.resolved_at && active.has(c.row_id)).length;
+}
+// the indicator shown in a row's Flag cell
+function flagCellHtml(rowId){
+  const open = openFlagsFor(rowId);
+  const threads = commentsFor(rowId).filter(c=>!c.parent_id).length;
+  if(open>0)    return `<span class="flag-ind open" title="${open} open flag${open>1?'s':''} — click to view">⚑${open>1?'<b>'+open+'</b>':''}</span>`;
+  if(threads>0) return `<span class="flag-ind has" title="Notes / resolved — click to view">💬</span>`;
+  return `<span class="flag-ind empty" title="Add a flag or note">⚐</span>`;
+}
+// the "N open flags" chip near the widgets; clicking it filters the grid to flagged rows
+function syncFlagTally(){
+  const of = openFlagCount(), ft = $('flagTally');
+  ft.style.display = of>0 ? 'inline-flex' : 'none';
+  ft.innerHTML = `⚑ ${of} open flag${of===1?'':'s'}`;
+  ft.classList.toggle('active', flagOnly);
+  if(!of && flagOnly){ flagOnly=false; }   // nothing to show; drop the filter silently
+}
 
 /* ---------- views ----------
    Date presets are relative to today and computed at apply time. Custom saved
@@ -484,6 +586,7 @@ function currentList(){
     const range = viewDateRange(dateView);
     if(range) list = list.filter(r=> r.campaign_end && r.campaign_end>=range[0] && r.campaign_end<=range[1]);
   }
+  if(flagOnly) list = list.filter(r=> openFlagsFor(r.id) > 0);   // only rows with an open flag
   if(sortKey){
     const dir = sortDir;
     list.sort((a,b)=>{
@@ -497,7 +600,7 @@ function currentList(){
   }
   return list;
 }
-function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0) + (dateView?1:0); }
+function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0) + (dateView?1:0) + (flagOnly?1:0); }
 
 /* ---------- summary strip ----------
    Everything here is computed from the SAME list the grid renders, so the
@@ -573,6 +676,7 @@ function render(){
     : 'Export all rows';
   $('exportBtn').classList.toggle('on', filt);
   syncViewsBtn();
+  syncFlagTally();
   // Import button is a one-time seed tool — hide the moment there's any data
   const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
   $('empty').style.display = total===0 ? 'flex':'none';
@@ -609,6 +713,10 @@ function render(){
     VC.forEach(c=>{
       if(c.type==='bool'){
         h += `<td data-k="${c.k}"><div class="chk"><input type="checkbox" ${r[c.k]?'checked':''}></div></td>`;
+        return;
+      }
+      if(c.type==='flag'){
+        h += `<td data-k="${c.k}" class="flagcell">${flagCellHtml(r.id)}</td>`;
         return;
       }
       if(c.type==='chkna'){
@@ -697,7 +805,7 @@ function move(dr, dc){
   ci = Math.max(0, Math.min(colKeys.length-1, ci + dc));
   selectCell(rowIds[ri], colKeys[ci], true);
 }
-function isEditable(col){ return !['dtext','dmoney','ts','bool','chkna'].includes(col.type) && !col.ro; }
+function isEditable(col){ return !['dtext','dmoney','ts','bool','chkna','flag'].includes(col.type) && !col.ro; }
 function toggleCheckboxAt(s){
   if(!requireEdit()) return;
   const col = COLS.find(c=>c.k===s.k), row = rows.find(r=>r.id===s.id); if(!col||!row) return;
@@ -708,6 +816,7 @@ function toggleCheckboxAt(s){
 // Enter / typing on the active cell: edit if editable, toggle if a checkbox, else no-op.
 function startEditAt(s, seedChar){
   const col = COLS.find(c=>c.k===s.k); if(!col) return;
+  if(col.type==='flag'){ const td=cellTd(s.id,s.k); if(td) openFlagPop(s.id, td); return; }
   if(col.type==='bool'||col.type==='chkna'){ toggleCheckboxAt(s); return; }
   if(!isEditable(col)) return;
   if(!requireEdit()) return;
@@ -717,7 +826,7 @@ function startEditAt(s, seedChar){
 function beginEdit(td, seedChar){
   const tr = td.closest('tr'); const id = tr.dataset.id; const k = td.dataset.k;
   const col = COLS.find(c=>c.k===k); if(!col) return;
-  if(['dtext','dmoney','ts','chkna'].includes(col.type) || col.ro) return;  // read-only / checkbox-only
+  if(['dtext','dmoney','ts','chkna','flag'].includes(col.type) || col.ro) return;  // read-only / checkbox / flag
   const row = rows.find(r=>r.id===id); if(!row) return;
   if(td.classList.contains('editing')) return;
   sel = {id, k};                                    // editing implies selection
@@ -819,6 +928,8 @@ $('wrap').addEventListener('click', e=>{
     if(!requireEdit()){ chk.checked = !chk.checked; return; }   // revert the visual toggle
     const k=cell.dataset.k; const row=rows.find(r=>r.id===tr.dataset.id);
     if(row){ row[k]=chk.checked; persist(row, [k]); } return; }
+  const flagTd = e.target.closest('td.flagcell');
+  if(flagTd){ const id=flagTd.closest('tr').dataset.id; selectCell(id,'_flag',false); openFlagPop(id, flagTd); return; }
   const td = e.target.closest('td[data-k]');
   if(td && !e.target.closest('.chk')){
     selectCell(td.closest('tr').dataset.id, td.dataset.k, false);   // click selects (works in view-only too)
@@ -839,6 +950,7 @@ document.addEventListener('keydown', e=>{
   if($('trashModal').classList.contains('show')) return;      // trash modal open
   if($('dd').classList.contains('show')) return;              // header dropdown open
   if($('viewsMenu').classList.contains('show')) return;       // views menu open
+  if($('flagPop').classList.contains('show')) return;         // flag/notes popover open
   const ae = document.activeElement;                          // don't hijack keys meant for other controls
   if(ae && ae!==document.body && !$('wrap').contains(ae)) return;
   if(!rows.length) return;
@@ -878,7 +990,7 @@ function parseDateToISO(s){
 // Coerce one pasted string for a column. Returns {key,value} or null to skip.
 function coercePaste(col, raw){
   if(!col) return null;
-  if(['dtext','dmoney','ts'].includes(col.type) || col.ro) return null;   // derived / read-only
+  if(['dtext','dmoney','ts','flag'].includes(col.type) || col.ro) return null;   // derived / read-only / flag
   const s = String(raw==null?'':raw).trim();
   switch(col.type){
     case 'bool': case 'chkna':
@@ -1193,6 +1305,112 @@ document.addEventListener('mousedown', e=>{
   closeViewsMenu();
 });
 
+/* ---------- flags & notes: per-row comment threads ---------- */
+let flagPopRow = null;
+function openFlagPop(rowId, anchorTd){
+  flagPopRow = rowId;
+  renderFlagPop();
+  const pop = $('flagPop'); pop.classList.add('show');
+  const r = anchorTd.getBoundingClientRect();
+  const w = pop.offsetWidth || 340;
+  pop.style.left = Math.max(6, Math.min(r.right - w, window.innerWidth - w - 6)) + 'px';
+  pop.style.top  = Math.max(6, Math.min(window.innerHeight - pop.offsetHeight - 6, r.bottom + 4)) + 'px';
+  // land on the composer when there's nothing yet; otherwise leave focus alone
+  setTimeout(()=>{ const ta=pop.querySelector('.fp-new-body'); if(ta && !threadsFor(rowId).length) ta.focus(); }, 0);
+}
+function closeFlagPop(){ $('flagPop').classList.remove('show'); flagPopRow=null; }
+function renderFlagPop(){
+  const rid = flagPopRow; if(!rid) return;
+  const row = rows.find(r=>r.id===rid);
+  const name = row ? (row.campaign_name || row.campaign_label || '(unnamed row)') : '';
+  const threads = threadsFor(rid);
+  let h = `<div class="fp-head"><span class="fp-title">Flags &amp; notes</span>`
+        + `<span class="fp-sub">${esc(name)}</span><button class="fp-close" title="Close">✕</button></div>`;
+  h += `<div class="fp-body">`;
+  if(!threads.length){
+    h += `<div class="fp-empty">No flags or notes on this campaign yet.</div>`;
+  } else {
+    threads.forEach(t=>{
+      const r0 = t.root, resolved = !!r0.resolved_at;
+      h += `<div class="fp-thread ${resolved?'resolved':''}">`;
+      h += `<div class="fp-c-head"><span class="fp-kind fp-${r0.kind}">${r0.kind==='flag'?'⚑ Flag':'💬 Note'}</span>`
+         + `<span class="fp-author">${esc(r0.author||'—')}</span><span class="fp-when">${esc(tsFmt(r0.created_at))}</span></div>`;
+      h += `<div class="fp-c-body">${esc(r0.body)}</div>`;
+      t.replies.forEach(rp=>{
+        h += `<div class="fp-reply"><div class="fp-c-head"><span class="fp-author">${esc(rp.author||'—')}</span>`
+           + `<span class="fp-when">${esc(tsFmt(rp.created_at))}</span></div><div class="fp-c-body">${esc(rp.body)}</div></div>`;
+      });
+      h += `<div class="fp-actions">`;
+      if(resolved){
+        h += `<span class="fp-resolved">✓ Resolved by ${esc(r0.resolved_by||'—')}</span>`
+           + `<button class="fp-btn" data-act="unresolve" data-id="${esc(r0.id)}">Reopen</button>`;
+      } else {
+        h += `<button class="fp-btn primary" data-act="resolve" data-id="${esc(r0.id)}">Resolve</button>`;
+      }
+      h += `</div>`;
+      if(!resolved){
+        h += `<div class="fp-replybox" data-root="${esc(r0.id)}">`
+           + `<input class="fp-reply-input" placeholder="Reply…" maxlength="500" autocomplete="off"><button class="fp-send" title="Send reply">↵</button></div>`;
+      }
+      h += `</div>`;
+    });
+  }
+  h += `</div>`;
+  // composer for a new thread
+  h += `<div class="fp-composer"><textarea class="fp-new-body" placeholder="Add a flag or note…" rows="2" maxlength="500"></textarea>`
+     + `<div class="fp-composer-row"><div class="fp-kindsel">`
+     + `<button class="fp-kbtn active" data-kind="flag">⚑ Flag</button><button class="fp-kbtn" data-kind="note">💬 Note</button></div>`
+     + `<button class="fp-add primary" data-act="add">Add</button></div>`
+     + `<div class="fp-hint">Flags show in the open-flags count until resolved. Notes don't.</div></div>`;
+  $('flagPop').innerHTML = h;
+}
+function reloadAndRefreshPop(){ return reload().then(()=>{ if(flagPopRow) renderFlagPop(); }); }
+function addNewThread(){
+  if(!requireEdit()) return;
+  const ta = $('flagPop').querySelector('.fp-new-body'); const body=(ta.value||'').trim(); if(!body) return;
+  const active = $('flagPop').querySelector('.fp-kbtn.active');
+  const kind = active ? active.dataset.kind : 'flag';
+  return store.addComment({ row_id:flagPopRow, parent_id:null, kind, body, author:actor })
+    .then(reloadAndRefreshPop).catch(err=>toast("Couldn't add: "+(err.message||err), false));
+}
+function addReply(rootId, input){
+  if(!requireEdit()) return;
+  const body=(input.value||'').trim(); if(!body) return;
+  return store.addComment({ row_id:flagPopRow, parent_id:rootId, kind:'note', body, author:actor })
+    .then(reloadAndRefreshPop).catch(err=>toast("Couldn't reply: "+(err.message||err), false));
+}
+function resolveThread(id, resolved){
+  if(!requireEdit()) return;
+  const patch = resolved ? { resolved_at:new Date().toISOString(), resolved_by:actor } : { resolved_at:null, resolved_by:null };
+  return store.updateComment(id, patch).then(reloadAndRefreshPop).catch(err=>toast("Couldn't update: "+(err.message||err), false));
+}
+$('flagPop').addEventListener('click', e=>{
+  if(e.target.closest('.fp-close')){ closeFlagPop(); return; }
+  const kbtn = e.target.closest('.fp-kbtn');
+  if(kbtn){ $('flagPop').querySelectorAll('.fp-kbtn').forEach(b=>b.classList.remove('active')); kbtn.classList.add('active'); return; }
+  const send = e.target.closest('.fp-send');
+  if(send){ const box=send.closest('.fp-replybox'); addReply(box.dataset.root, box.querySelector('.fp-reply-input')); return; }
+  const act = e.target.closest('[data-act]');
+  if(act){ const a=act.dataset.act;
+    if(a==='add') addNewThread();
+    else if(a==='resolve') resolveThread(act.dataset.id, true);
+    else if(a==='unresolve') resolveThread(act.dataset.id, false);
+  }
+});
+$('flagPop').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target.classList.contains('fp-reply-input')){
+    e.preventDefault(); const box=e.target.closest('.fp-replybox'); addReply(box.dataset.root, e.target);
+  } else if(e.key==='Enter' && (e.metaKey||e.ctrlKey) && e.target.classList.contains('fp-new-body')){
+    e.preventDefault(); addNewThread();
+  } else if(e.key==='Escape'){ closeFlagPop(); }
+});
+document.addEventListener('mousedown', e=>{
+  const pop=$('flagPop'); if(!pop.classList.contains('show')) return;
+  if(e.target.closest('#flagPop') || e.target.closest('td.flagcell')) return;
+  closeFlagPop();
+});
+$('flagTally').onclick = ()=>{ flagOnly = !flagOnly; render(); };
+
 syncWhoami();
 
 /* ---------- import (local testing) ---------- */
@@ -1231,6 +1449,7 @@ $('exportBtn').onclick = ()=>{
   const lines = [heads.map(csv).join(',')];
   list.forEach(r=>{
     lines.push(COLS.map(c=>{
+      if(c.type==='flag'){ const n=openFlagsFor(r.id); return n||''; }   // open flag count
       if(c.type==='bool') return r[c.k]?'TRUE':'FALSE';
       if(c.type==='chkna'){
         const raw=r[c.k], blank=raw===''||raw==null;
@@ -1432,7 +1651,7 @@ document.addEventListener('mousedown', e=>{
   if(e.target.closest('#dd') || e.target.closest('th[data-sk]')) return;
   closeDropdown();
 });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeViewsMenu(); closeHistory(); closeTrash(); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDropdown(); closeViewsMenu(); closeHistory(); closeTrash(); closeFlagPop(); } });
 
 /* ---------- column resize ---------- */
 $('wrap').addEventListener('pointerdown', e=>{
@@ -1487,7 +1706,17 @@ function toastAction(msg, label, fn){
    export and every other consumer of `rows` see only active rows automatically.
    Filtering client-side (rather than in the query) keeps the app working even
    before the deleted_at column exists — undefined simply reads as not-deleted. */
-function reload(){ return store.list().then(r=>{ rows = r.filter(x=>!x.deleted_at); render(); }); }
+function reload(){
+  return Promise.all([
+    store.list().then(r=>{ rows = r.filter(x=>!x.deleted_at); }),
+    Promise.resolve(store.listComments ? store.listComments() : []).then(c=>{ comments = c || []; })
+  ]).then(()=>{
+    render();
+    // keep an open thread panel fresh on realtime changes, but never wipe an input
+    // the user is mid-typing in
+    if($('flagPop').classList.contains('show') && !$('flagPop').contains(document.activeElement)) renderFlagPop();
+  });
+}
 
 /* ---------- boot ---------- */
 function boot(){

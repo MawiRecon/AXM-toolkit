@@ -184,3 +184,36 @@ revoke all on billing_rows_history from anon;
 alter table billing_rows add column if not exists deleted_at timestamptz;
 -- speeds the "active rows only" read; partial index stays tiny since deleted rows are rare
 create index if not exists billing_rows_active_idx on billing_rows (deleted_at) where deleted_at is null;
+
+
+-- =====================================================================
+-- FLAGS & NOTES (per-row comment threads)  (added 2026-07)
+-- ---------------------------------------------------------------------
+-- Each row can carry comment threads. A thread root (parent_id null) is either a
+-- 'flag' (needs attention — counted in the open-flags tally) or a 'note' (just a
+-- comment). Anyone can reply (parent_id -> root) and resolve/unresolve a thread.
+-- Retention posture like everything else: no delete, only resolve.
+--
+-- ---- EXISTING DEPLOYMENTS: run this once. -------------------------------
+create table if not exists billing_comments (
+  id          uuid primary key default gen_random_uuid(),
+  row_id      uuid        not null,          -- billing_rows.id (not a FK: survives row soft-delete)
+  parent_id   uuid,                          -- null = thread root; else a reply to that root
+  kind        text        not null default 'flag',  -- 'flag' | 'note'  (meaningful on roots)
+  body        text        not null,
+  author      text,                          -- self-attested name (the "editing as" gate)
+  created_at  timestamptz not null default now(),
+  resolved_at timestamptz,                   -- null = open
+  resolved_by text
+);
+create index if not exists billing_comments_row_idx on billing_comments (row_id, created_at);
+-- fast open-flag tally
+create index if not exists billing_comments_open_flag_idx on billing_comments (kind) where resolved_at is null and parent_id is null;
+
+alter table billing_comments enable row level security;
+create policy "auth read comments"   on billing_comments for select to authenticated using (true);
+create policy "auth insert comments" on billing_comments for insert to authenticated with check (true);
+create policy "auth update comments" on billing_comments for update to authenticated using (true) with check (true);
+grant select, insert, update on billing_comments to authenticated;   -- no delete: resolve, don't destroy
+revoke all on billing_comments from anon;
+alter publication supabase_realtime add table billing_comments;

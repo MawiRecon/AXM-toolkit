@@ -12,6 +12,7 @@
   var CFG = window.AX_BILLING_CONFIG || { BACKEND: 'local' };
   var LS_KEY = 'ax_billing_rows_v1';
   var LS_HIST = 'ax_billing_history_v1';   // local-mode mirror of billing_rows_history
+  var LS_COMMENTS = 'ax_billing_comments_v1';   // local-mode mirror of billing_comments
 
   function uuid() {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -163,13 +164,37 @@
   LocalStore.prototype.count = function () { return Promise.resolve(this._read().length); };
   LocalStore.prototype.onChange = function (f) { this._subs.push(f); };
 
+  /* ---- comments (flags & notes) — local mirror of billing_comments ---- */
+  LocalStore.prototype._readComments = function () {
+    try { var v = JSON.parse(localStorage.getItem(LS_COMMENTS) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  };
+  LocalStore.prototype._writeComments = function (list) {
+    localStorage.setItem(LS_COMMENTS, JSON.stringify(list));
+    this._subs.forEach(function (f) { try { f(); } catch (e) {} });
+  };
+  LocalStore.prototype.listComments = function () { return Promise.resolve(this._readComments()); };
+  LocalStore.prototype.addComment = function (c) {
+    var list = this._readComments();
+    c.id = c.id || uuid(); c.created_at = c.created_at || new Date().toISOString();
+    list.push(c); this._writeComments(list);
+    return Promise.resolve(c);
+  };
+  LocalStore.prototype.updateComment = function (id, patch) {
+    var list = this._readComments();
+    var i = list.findIndex(function (c) { return c.id === id; });
+    if (i >= 0) { list[i] = Object.assign({}, list[i], patch); this._writeComments(list); }
+    return Promise.resolve();
+  };
+
   /* ---------------- Supabase backend ---------------- */
   function SupabaseStore(client) {
     this.c = client; this._subs = [];
     var self = this;
-    this.c.channel('billing_rows_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'billing_rows' },
-          function () { self._subs.forEach(function (f) { try { f(); } catch (e) {} }); })
+    var fire = function () { self._subs.forEach(function (f) { try { f(); } catch (e) {} }); };
+    this.c.channel('billing_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'billing_rows' }, fire)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'billing_comments' }, fire)
       .subscribe();
   }
   SupabaseStore.prototype.mode = 'supabase';
@@ -209,6 +234,20 @@
   };
   SupabaseStore.prototype.restore = function (id, actor) {
     return this.update(id, { deleted_at: null, updated_by: actor });
+  };
+  /* ---- comments (flags & notes) ---- */
+  SupabaseStore.prototype.listComments = function () {
+    return this.c.from('billing_comments').select('*').order('created_at', { ascending: true })
+      .then(function (r) { if (r.error) throw r.error; return r.data || []; })
+      .catch(function (e) { console.warn('comments load failed (table may not exist yet)', e); return []; });
+  };
+  SupabaseStore.prototype.addComment = function (c) {
+    return this.c.from('billing_comments').insert(c).select().single()
+      .then(function (r) { if (r.error) throw r.error; return r.data; });
+  };
+  SupabaseStore.prototype.updateComment = function (id, patch) {
+    return this.c.from('billing_comments').update(patch).eq('id', id)
+      .then(function (r) { if (r.error) throw r.error; });
   };
   SupabaseStore.prototype.bulkInsert = function (list) {
     return this.c.from('billing_rows').insert(list).select()
