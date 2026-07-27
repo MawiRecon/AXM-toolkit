@@ -527,6 +527,12 @@ const DATE_VIEWS = [
   {k:'prev-quarter',    label:'Previous Quarter'},
   {k:'ytd',             label:'Year to Date'},
 ];
+/* "Recently added" is a top-N on created_at (when the row entered THIS tool), not a
+   date range on the campaign's flight — so a campaign booked months out still shows
+   up the day it's added. Shares the dateView slot, so picking one clears the other. */
+const RECENT_VIEWS = [
+  {k:'recent-5', label:'Last 5 added', n:5},
+];
 const VIEWS_KEY = 'ax_billing_views_v1';
 function loadViews(){ try{ const v=JSON.parse(localStorage.getItem(VIEWS_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
 function saveViews(v){ localStorage.setItem(VIEWS_KEY, JSON.stringify(v)); }
@@ -544,7 +550,8 @@ function viewDateRange(v){
     default: return null;
   }
 }
-function dateViewLabel(v){ const d=DATE_VIEWS.find(x=>x.k===v); return d?d.label:''; }
+function dateViewLabel(v){ const d=DATE_VIEWS.concat(RECENT_VIEWS).find(x=>x.k===v); return d?d.label:''; }
+function recentViewN(v){ const r=RECENT_VIEWS.find(x=>x.k===v); return r?r.n:0; }
 const COL_W_KEY = 'ax_billing_col_widths_v1';
 let colWidths = (()=>{ try{ return JSON.parse(localStorage.getItem(COL_W_KEY)||'{}'); }catch(e){ return {}; }})();
 function widthOf(c){ return colWidths[c.k] || c.w; }
@@ -588,9 +595,17 @@ function currentList(){
     const allowed = filters[k];
     list = list.filter(r=> allowed.has(filterKey(r[k])));
   }
-  if(dateView){                              // date preset: campaign_end within the range
-    const range = viewDateRange(dateView);
-    if(range) list = list.filter(r=> r.campaign_end && r.campaign_end>=range[0] && r.campaign_end<=range[1]);
+  if(dateView){
+    const n = recentViewN(dateView);
+    if(n){
+      // top N by created_at (newest added first). Runs AFTER search/column filters, so
+      // it means "the N most recent among what's showing". The user's own sort is
+      // applied below and only reorders these N — it can't change which N.
+      list = list.slice().sort((a,b)=> String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0, n);
+    } else {                                 // date preset: campaign_end within the range
+      const range = viewDateRange(dateView);
+      if(range) list = list.filter(r=> r.campaign_end && r.campaign_end>=range[0] && r.campaign_end<=range[1]);
+    }
   }
   if(flagOnly) list = list.filter(r=> openFlagsFor(r.id) > 0);   // only rows with an open flag
   if(sortKey){
@@ -1252,6 +1267,11 @@ function renderViewsMenu(){
   const saved = loadViews();
   let h = `<div class="vm-sec">Date ranges (by End date)</div>`;
   DATE_VIEWS.forEach(d=>{
+    const on = dateView===d.k;
+    h += `<div class="item ${on?'active':''}" data-view="${d.k}">${esc(d.label)}${on?'<span class="vm-check">✓</span>':''}</div>`;
+  });
+  h += `<div class="sep"></div><div class="vm-sec">Recently added (by date added)</div>`;
+  RECENT_VIEWS.forEach(d=>{
     const on = dateView===d.k;
     h += `<div class="item ${on?'active':''}" data-view="${d.k}">${esc(d.label)}${on?'<span class="vm-check">✓</span>':''}</div>`;
   });
