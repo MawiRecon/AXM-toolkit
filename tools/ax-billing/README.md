@@ -87,7 +87,21 @@ Why it works this way:
   banner. It means the block didn't split as expected, so spend and margin aren't
   where we're reading — the count is the tell that rows went missing.
 - Warnings (not blocks) on: spend >10% off the IO amount, negative/zero spend,
-  margin outside 0–60%, short lines, and assumed decimal readings.
+  margin above 96% or between 0 and 20%, short lines, and assumed decimal readings.
+
+**On the margin bounds.** They come from the 256 margins on the books: median 84.3%,
+p95 90.0%, p99 92.3%, max 95.4%. The band was originally 0–60%, which fired on 240 of
+those 256 — a warning that flags 94% of normal input just trains everyone to scroll
+past it. Nothing has ever exceeded 96%. Under 20% has happened once, but it's also
+what a decimal slip looks like (`8.5` meant as 85% parses to 8.5%) and that
+understates Gross Profit tenfold, so the one false hit is worth keeping. An exact `0`
+is deliberate on a few rows and isn't flagged.
+
+What a band *can't* catch: **Ax Margin** (margin ÷ 2) pasted where **Total Margin**
+belongs lands at ~42% against a usual ~84% — inside any sane range. Since
+`Gross Profit = Actualized Spend × Actualized Margin` and the back-end rebate halves
+it downstream, that mistake quietly halves every rebate. The review's dollar impact
+on Total Back-End Rebate is the check for it, not the bounds.
 
 Since spend is now left blank until actuals come back, `Rebate Value` (L) and
 `Sent to Grapeseed` (M) stay blank on those rows too — they're computed off spend.

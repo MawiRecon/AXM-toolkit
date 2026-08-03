@@ -1901,8 +1901,25 @@ function analyzeActuals(text){
       } else it.sameMargin = true;
       if(mg.assumed)
         it.warns.push(`Read “${String(marginRaw).trim()}” as ${pctFmt(mg.v)}. If they meant ${pctFmt(mg.v/100)}, fix it in the sheet.`);
-      if(mg.v < 0 || mg.v > 0.60)
-        it.warns.push(`Margin ${pctFmt(mg.v)} is outside the usual 0–60% range.`);
+      /* Bounds taken from the 256 margins actually on the books: median 84.3%,
+         p95 90.0%, p99 92.3%, max 95.4%. The old 0–60% band predated that data and
+         fired on 240 of the 256 — a warning that flags 94% of normal input teaches
+         everyone to scroll past it, which is worse than no warning at all.
+
+         Nothing has ever exceeded 96%. Below 20% has happened once, but it's also
+         the signature of a decimal slip — "8.5" meant as 85% parses to 8.5% — and
+         that understates Gross Profit tenfold, so the one false hit earns its keep.
+         An exact 0 is deliberate on a handful of rows, so it's left alone.
+
+         Note what a band cannot catch: Ax Margin (margin ÷ 2) pasted in place of
+         Total Margin lands at ~42% instead of ~84%, squarely inside any sane range.
+         The review's dollar impact on Total Back-End Rebate is the check for that. */
+      if(mg.v < 0)
+        it.warns.push(`Margin ${pctFmt(mg.v)} is negative.`);
+      else if(mg.v > 0.96)
+        it.warns.push(`Margin ${pctFmt(mg.v)} is higher than any on the books (the highest is 95.4%).`);
+      else if(mg.v > 0 && mg.v < 0.20)
+        it.warns.push(`Margin ${pctFmt(mg.v)} is well below the usual range (median 84%) — check the decimal place.`);
     }
     items.push(it);
   });
