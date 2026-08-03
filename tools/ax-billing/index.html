@@ -203,9 +203,18 @@
   .act-prev td.key{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
   .act-prev td.num{text-align:right}
   .act-prev td.fill{background:var(--accent-tint)}
-  .act-ta{width:100%;min-height:160px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
-    color:var(--ink);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:10px 12px;resize:vertical}
-  .act-ta:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .act-drop{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
+    width:100%;min-height:170px;background:var(--panel-2);border:1.5px dashed var(--line);border-radius:9px;
+    cursor:pointer;transition:border-color .12s,background .12s}
+  .act-drop:hover{border-color:var(--accent)}
+  .act-drop.over{border-color:var(--accent);background:var(--accent-tint)}
+  .act-drop:focus-within{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .act-drop input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+  .act-drop-in{display:flex;flex-direction:column;gap:7px;padding:22px;pointer-events:none}
+  .act-drop-t{color:var(--ink);font-weight:600;font-size:13.5px}
+  .act-drop-s{color:var(--muted);font-size:12.5px}
+  .act-drop-s u{color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor}
+  .act-drop-h{color:var(--faint);font-size:11.5px}
   .act-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--line-soft)}
   .act-foot .grow{flex:1;color:var(--faint);font-size:12px}
 
@@ -1625,14 +1634,20 @@ function csv(v){ v=v==null?'':String(v); return /[",\r\n]/.test(v)?'"'+v.replace
      1. This tool exports the rows awaiting actuals, each carrying a Row Key,
         with Actualized Spend and Actualized Margin left blank.
      2. They fill those two columns and send the sheet back.
-     3. It's pasted here. Rows are matched BY KEY, never by position, and
-        nothing is written until a review screen — including the dollar impact
-        on the back-end rebate — has been accepted.
+     3. The FILE is uploaded here — not a copy/paste of it. Rows are matched BY
+        KEY, never by position, and nothing is written until a review screen —
+        including the dollar impact on the back-end rebate — has been accepted.
 
    Two rules the review depends on:
      - A blank cell in the returned sheet means "not provided". It is skipped;
        it NEVER clears a value already in the grid.
      - An unresolvable or ambiguous key is reported, never guessed at.
+
+   Why a file and not a paste: a spreadsheet's clipboard re-serializes to TSV with
+   no escaping (one campaign name ending in a stray `"` ran 35 rows into a single
+   field, and only 3 of 39 applied — silently), and it carries what each cell
+   DISPLAYS, so a margin held as 0.908095 arrives as 90.81% and lands up to $12 off
+   on Gross Profit for a $250k flight. The file has neither problem.
    ===================================================================== */
 const ACT_PERIODS = DATE_VIEWS.concat([{k:'all-ended', label:'All ended flights'}]);
 let actTab = 'request', actPeriod = 'prev-month', actReview = null;
@@ -1725,21 +1740,33 @@ function parseMargin(raw){
   return { v:p.n, assumed:true };
 }
 
-/* ---------- delimited parsing (handles quoted CSV, tab-separated paste) ---------- */
-function parseDelimited(text, d){
+/* ---------- delimited parsing (handles quoted CSV and tab-separated files) ----------
+   Two rules here exist because campaign names contain bare double-quotes — both
+   deliberate (`"Fringe"`, `"No Bull"`) and accidental (a stray trailing `"` typo).
+   A spreadsheet's clipboard TSV does not escape those, so a naive parser reads one
+   as an opening quote and swallows every remaining row into a single field. That
+   failure is silent: the block still parses, just short.
+
+   1. A `"` only opens a quoted field at the START of a field. Mid-field or trailing
+      quotes are literal text. Real CSV always opens its quotes at field start, so
+      well-formed input is unaffected.
+   2. If the input still ends mid-quote, the quoting was not real — re-read the whole
+      thing with quotes as literal characters rather than returning a mangled grid. */
+function parseDelimited(text, d, literalQuotes){
   const s = String(text).replace(/\r\n?/g,'\n');
-  const out=[]; let row=[], cur='', q=false;
+  const out=[]; let row=[], cur='', q=false, atFieldStart=true;
   for(let i=0;i<s.length;i++){
     const c = s[i];
     if(q){
       if(c==='"'){ if(s[i+1]==='"'){ cur+='"'; i++; } else q=false; }
       else cur+=c;
     }
-    else if(c==='"') q=true;
-    else if(c===d){ row.push(cur); cur=''; }
-    else if(c==='\n'){ row.push(cur); out.push(row); row=[]; cur=''; }
-    else cur+=c;
+    else if(c==='"' && !literalQuotes && atFieldStart){ q=true; atFieldStart=false; }
+    else if(c===d){ row.push(cur); cur=''; atFieldStart=true; }
+    else if(c==='\n'){ row.push(cur); out.push(row); row=[]; cur=''; atFieldStart=true; }
+    else { cur+=c; atFieldStart=false; }
   }
+  if(q && !literalQuotes) return parseDelimited(text, d, true);   // unterminated — quoting wasn't real
   row.push(cur); out.push(row);
   return out.filter(r=> r.some(c=> String(c).trim()!==''));
 }
@@ -1757,11 +1784,53 @@ function findCols(head){
   return c;
 }
 
-/* Read the pasted sheet into reviewable items. Pure — writes nothing. */
+/* ---------- reading the returned file ----------
+   The import takes a file, never a clipboard paste. A spreadsheet's clipboard is a
+   lossy channel in two ways that both cost real money here: it re-serializes to TSV
+   with no escaping, so a campaign name ending in a stray `"` runs the rest of the
+   block into one field; and it hands over what each cell *displays*, so a margin held
+   as 0.908095 arrives as 90.81% — up to $12 of Gross Profit on a $250k row. The file
+   keeps the escaping and the full precision. */
+const ACT_MAX_BYTES = 8 * 1024 * 1024;
+function readActualsFile(file){
+  return new Promise((resolve, reject)=>{
+    if(!file) return reject(new Error('No file.'));
+    if(!file.size) return reject(new Error(`${file.name} is empty.`));
+    if(file.size > ACT_MAX_BYTES)
+      return reject(new Error(`${file.name} is over 8 MB — that isn't an actuals sheet.`));
+    const fr = new FileReader();
+    fr.onerror = ()=> reject(new Error(`Couldn't read ${file.name}.`));
+    fr.onload = ()=>{
+      const text = String(fr.result||'').replace(/^\uFEFF/,'');    // Excel writes a BOM
+      // .xlsx and .numbers are zip archives; read as text they're binary noise, and
+      // "Download → Excel" is the easy wrong choice in Sheets. Say so plainly.
+      if(text.charCodeAt(0)===0x50 && text.charCodeAt(1)===0x4B)
+        return reject(new Error(`${file.name} is a spreadsheet file, not a text sheet. `
+          + `In Sheets use File → Download → Comma-separated values (.csv).`));
+      if(text.indexOf('\u0000') >= 0)
+        return reject(new Error(`${file.name} isn't text. Save it as CSV and try again.`));
+      resolve(text);
+    };
+    fr.readAsText(file);
+  });
+}
+/* File in → review out. Writes nothing; Apply is still the only write. */
+function loadActualsFile(file){
+  readActualsFile(file).then(text=>{
+    const res = analyzeActuals(text);
+    if(res.error) return toast(res.error, false);
+    if(!res.items.length) return toast(`No data rows found in ${file.name}.`, false);
+    res.fileName = file.name;
+    actReview = res;
+    renderActuals();
+  }).catch(err=> toast(err.message, false));
+}
+
+/* Read the returned sheet into reviewable items. Pure — writes nothing. */
 function analyzeActuals(text){
   const d = text.includes('\t') ? '\t' : ',';
   const grid = parseDelimited(text, d);
-  if(!grid.length) return {error:'Nothing to read. Paste the sheet, including its header row.'};
+  if(!grid.length) return {error:'Nothing to read — that file has no rows. It needs the header row too.'};
 
   let hi=-1, cols=null;
   for(let i=0;i<Math.min(grid.length,6);i++){
@@ -1780,6 +1849,13 @@ function analyzeActuals(text){
   if(cols.si<0 && cols.mi<0)
     return {error:'Found a Row Key column but no Actualized Spend or Actualized Margin column.'};
 
+  /* A line with fewer cells than the header means the block didn't split the way we
+     think it did — a stray delimiter or quote ran two lines together. The spend and
+     margin cells on such a line land somewhere other than where we're reading, so
+     report it instead of quietly reading blanks off the end of the row. */
+  const width = grid[hi<0?0:hi].length;
+  const shortLines = grid.slice(hi+1).filter(l=> l.length < width).length;
+
   const items = [];
   grid.slice(hi+1).forEach((line,i)=>{
     const keyRaw = line[cols.ki];
@@ -1788,6 +1864,8 @@ function analyzeActuals(text){
     if(!String(keyRaw||'').trim() && !String(spendRaw||'').trim() && !String(marginRaw||'').trim()) return;
 
     const it = { line:i+1, keyRaw:String(keyRaw||'').trim(), fields:[], warns:[], include:true, row:null };
+    if(line.length < width)
+      it.warns.push(`This line has ${line.length} of ${width} columns — the file may have run lines together. Check spend and margin before applying.`);
     const hits = matchKey(keyRaw);
     if(hits.length === 0){
       it.status = 'unmatched';
@@ -1829,7 +1907,7 @@ function analyzeActuals(text){
     items.push(it);
   });
 
-  return { items, headerless, colNames, delim:d, error:null };
+  return { items, headerless, colNames, delim:d, shortLines, error:null };
 }
 
 /* ---------- impact ----------
@@ -1904,14 +1982,20 @@ function renderActualsRequest(tabs){
 }
 
 function renderActualsImport(tabs){
-  $('actualsSub').textContent = actReview ? 'Step 2 — review before applying' : 'Step 2 — paste what came back';
+  $('actualsSub').textContent = actReview ? 'Step 2 — review before applying' : 'Step 2 — upload what came back';
   if(!actReview){
     $('actualsBody').innerHTML = tabs
-      + `<p class="act-note">Paste the returned sheet below — the whole block, header row included. `
+      + `<p class="act-note">Upload the file they sent back — the whole sheet, header row included. `
       + `Rows are matched on their Row Key, so the order doesn't have to match anything. Nothing is written until you've reviewed it.</p>`
-      + `<textarea id="actPaste" class="act-ta" spellcheck="false" placeholder="Row Key&#9;Entity&#9;Advertiser&#9;…&#9;Actualized Spend&#9;Actualized Margin&#10;AX-2f3a9b1c&#9;…"></textarea>`;
-    $('actualsFoot').innerHTML = `<span class="grow"></span><button class="primary" data-act="review">Review changes</button>`;
-    const ta = $('actPaste'); if(ta) ta.focus();
+      + `<label class="act-drop" id="actDrop">`
+      +   `<input type="file" id="actFile" accept=".csv,.tsv,.tab,.txt,text/csv,text/tab-separated-values,text/plain">`
+      +   `<span class="act-drop-in">`
+      +     `<span class="act-drop-t">Drop the returned sheet here</span>`
+      +     `<span class="act-drop-s">or <u>choose a file</u></span>`
+      +     `<span class="act-drop-h">CSV, TSV or TXT · from Sheets use File → Download → Comma-separated values (.csv)</span>`
+      +   `</span>`
+      + `</label>`;
+    $('actualsFoot').innerHTML = `<span class="grow">Reading the file keeps the exact values — a copy/paste would round them to what the cells display.</span>`;
     return;
   }
   renderActualsReview(tabs);
@@ -1932,12 +2016,19 @@ function renderActualsReview(tabs){
     + `</div>`
     + `<div id="rvImpact"></div>`;
 
+  if(actReview.shortLines){
+    h += `<div class="rv-cols" style="color:var(--warn)">${actReview.shortLines} line`
+       + `${actReview.shortLines===1?'':'s'} came through with fewer columns than the header — the file `
+       + `didn't split cleanly, so rows may be missing entirely. Compare the count above against what you sent.</div>`;
+  }
   if(actReview.headerless){
     h += `<div class="rv-cols" style="color:var(--warn)">No header row found — read using the request sheet's own column order `
        + `(Row Key first, Spend and Margin last). Check the values below before applying.</div>`;
   } else if(actReview.colNames){
     const c = actReview.colNames;
-    h += `<div class="rv-cols">Read <code>${esc(c.key)}</code> as the row key`
+    h += `<div class="rv-cols">`
+       + (actReview.fileName ? `<code>${esc(actReview.fileName)}</code> — read ` : `Read `)
+       + `<code>${esc(c.key)}</code> as the row key`
        + (c.spend  ? `, <code>${esc(c.spend)}</code> as actualized spend`   : ` · no spend column found`)
        + (c.margin ? `, <code>${esc(c.margin)}</code> as actualized margin.` : ` · no margin column found.`)
        + `</div>`;
@@ -1987,7 +2078,7 @@ function renderImpact(){
 }
 function syncApplyBtn(){
   const n = actReview.items.filter(it=> it.row && it.fields.length && it.include).length;
-  $('actualsFoot').innerHTML = `<button class="ghost" data-act="back">← Paste again</button>`
+  $('actualsFoot').innerHTML = `<button class="ghost" data-act="back">← Choose another file</button>`
     + `<span class="grow"></span>`
     + `<button class="primary" data-act="apply"${n?'':' disabled'}>Apply to ${n} row${n===1?'':'s'}</button>`;
 }
@@ -2016,11 +2107,43 @@ function applyActuals(){
 $('actualsBtn').onclick = openActuals;
 $('actualsClose').onclick = closeActuals;
 $('actualsModal').addEventListener('click', e=>{ if(e.target===$('actualsModal')) closeActuals(); });
+
+/* Drag-and-drop. The listeners sit on the whole modal, not just the drop zone: an
+   unhandled drop anywhere on the page makes the browser navigate to the file, which
+   would blow the panel away mid-task. Swallowing it modal-wide makes a near miss a
+   no-op instead. Only the upload step accepts one. */
+(function(){
+  const modal = $('actualsModal');
+  const live = ()=> modal.classList.contains('show') && actTab==='import' && !actReview;
+  const zone = ()=> $('actDrop');
+  const lit  = on=>{ const z=zone(); if(z) z.classList.toggle('over', on); };
+  modal.addEventListener('dragover', e=>{
+    e.preventDefault();
+    if(!live()) { e.dataTransfer.dropEffect='none'; return; }
+    e.dataTransfer.dropEffect='copy'; lit(true);
+  });
+  modal.addEventListener('dragleave', e=>{ if(!modal.contains(e.relatedTarget)) lit(false); });
+  modal.addEventListener('drop', e=>{
+    e.preventDefault(); lit(false);
+    if(!live()) return;
+    const files = (e.dataTransfer && e.dataTransfer.files) || [];
+    if(!files.length) return;
+    if(files.length > 1) return toast('Drop one file — the sheet they sent back.', false);
+    loadActualsFile(files[0]);
+  });
+})();
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape' && $('actualsModal').classList.contains('show')) closeActuals();
 });
 $('actualsBody').addEventListener('change', e=>{
   if(e.target.id==='actPeriod'){ actPeriod = e.target.value; renderActuals(); return; }
+  if(e.target.id==='actFile'){
+    const f = e.target.files && e.target.files[0];
+    // Clear the input so re-picking the same file after a failed read still fires.
+    e.target.value = '';
+    if(f) loadActualsFile(f);
+    return;
+  }
   const cb = e.target.closest('input[type=checkbox]');
   if(cb && actReview){
     const it = actReview.items[+cb.dataset.i];
@@ -2039,14 +2162,6 @@ $('actualsFoot').addEventListener('click', e=>{
   if(act==='close') return closeActuals();
   if(act==='back'){ actReview=null; renderActuals(); return; }
   if(act==='apply') return applyActuals();
-  if(act==='review'){
-    const text = ($('actPaste')||{}).value || '';
-    if(!text.trim()) return toast('Paste the returned sheet first.', false);
-    const res = analyzeActuals(text);
-    if(res.error) return toast(res.error, false);
-    if(!res.items.length) return toast('No data rows found in that paste.', false);
-    actReview = res; renderActuals(); return;
-  }
   const list = actualsScope(actPeriod);
   if(act==='copy'){
     copyText(reqTable(list, '\t'))

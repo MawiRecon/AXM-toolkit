@@ -48,8 +48,9 @@ This is the keyed round trip that gets them in without hand-transcription:
    with **Actualized Spend** and **Actualized Margin** blank. Copy or download it
    and send it over. They fill the two columns — usually copying the IO amount
    straight across into spend — and send it back.
-2. **Import** — paste the returned block. Rows match on their **Row Key**, so the
-   order doesn't have to match anything.
+2. **Import** — upload the file they send back (drag it onto the panel, or click to
+   pick it). CSV, TSV or TXT. Rows match on their **Row Key**, so the order doesn't
+   have to match anything.
 3. **Review** — before a single write: what changes, which values *replace* an
    existing number, what didn't match, and the **dollar impact** on Total Back-End
    Rebate / Invoice Discount / Actualized Spend. Uncheck anything you don't want.
@@ -68,8 +69,25 @@ Why it works this way:
 - **A blank cell means "not provided"** — it's skipped, never written as zero, and
   never clears a value already in the grid.
 - **An unmatched or ambiguous key is reported, never guessed at.**
+- **A file, never a clipboard paste.** A spreadsheet's clipboard is lossy twice over,
+  and both cost money here. It re-serializes to TSV with no escaping — one campaign
+  name ending in a stray `"` ran the 35 rows below it into a single field, and only
+  3 of 39 applied, *silently*. And it carries what a cell **displays**, not what it
+  holds: a margin of `0.908095` arrives as `90.81%`, which is up to **$12 of Gross
+  Profit** on a $250k flight. The file has neither problem, so the import only takes
+  a file. `.xlsx` is detected and rejected with the Sheets menu path to a real CSV.
+- **A bare `"` in a campaign name is literal text, not a quote.** Campaign names
+  carry double-quotes both deliberately (`"Fringe"`, `"No Bull"`) and by typo (a
+  stray trailing `"`), and a spreadsheet's clipboard TSV doesn't escape them. A
+  textbook CSV parser reads the stray one as an opening quote and swallows every
+  row after it into a single field — the block still parses, just short, silently.
+  So a `"` only opens a quoted field at the *start* of a field, and an input that
+  ends mid-quote is re-read with quotes literal.
+- **A line with fewer columns than the header is reported**, per-row and as a
+  banner. It means the block didn't split as expected, so spend and margin aren't
+  where we're reading — the count is the tell that rows went missing.
 - Warnings (not blocks) on: spend >10% off the IO amount, negative/zero spend,
-  margin outside 0–60%, and assumed decimal readings.
+  margin outside 0–60%, short lines, and assumed decimal readings.
 
 Since spend is now left blank until actuals come back, `Rebate Value` (L) and
 `Sent to Grapeseed` (M) stay blank on those rows too — they're computed off spend.
