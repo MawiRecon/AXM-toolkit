@@ -181,6 +181,77 @@
   .fp-add{margin-left:auto}
   .fp-hint{color:var(--faint);font-size:10.5px;margin-top:7px;line-height:1.35}
 
+  /* ---------- Actuals request / import (reuses the .hist-modal shell) ---------- */
+  .hist-card.wide{width:1060px}
+  .act-tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:12px 0 2px}
+  .act-tab{background:transparent;border:0;border-radius:0;color:var(--muted);padding:7px 15px;font:inherit;font-size:12.5px}
+  .act-tab:hover{background:var(--panel-2);border-color:transparent}
+  .act-tab.active{background:var(--accent-tint);color:var(--accent);font-weight:600}
+  .act-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:13px 0 10px}
+  .act-sel{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    font:inherit;padding:6px 10px}
+  .act-sel:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .act-note{color:var(--faint);font-size:12px;line-height:1.55;margin:0 0 11px}
+  .act-note b{color:var(--muted);font-weight:600}
+  .act-prev{max-height:250px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+  .act-prev table{width:100%;table-layout:auto;font-size:12px;border-collapse:separate;border-spacing:0}
+  .act-prev th{position:sticky;top:0;z-index:2;background:#211F1D;color:var(--muted);font-size:10px;
+    font-weight:600;letter-spacing:.04em;text-transform:uppercase;text-align:left;padding:6px 9px;white-space:nowrap}
+  .act-prev th.fill{color:var(--accent)}
+  .act-prev td{padding:5px 8px;border-top:1px solid var(--line-soft);white-space:nowrap;
+    font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;max-width:165px}
+  .act-prev td.key{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+  .act-prev td.num{text-align:right}
+  .act-prev td.fill{background:var(--accent-tint)}
+  .act-ta{width:100%;min-height:160px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    color:var(--ink);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:10px 12px;resize:vertical}
+  .act-ta:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .act-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--line-soft)}
+  .act-foot .grow{flex:1;color:var(--faint);font-size:12px}
+
+  /* review screen */
+  .rv-chips{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 11px}
+  .rv-chip{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;
+    background:var(--panel-2);color:var(--muted)}
+  .rv-chip.ok{background:var(--ok-tint);color:var(--ok)}
+  .rv-chip.warn{background:var(--warn-tint);color:var(--warn)}
+  .rv-chip.err{background:var(--err-tint);color:var(--err)}
+  .rv-impact{border:1px solid var(--line);border-radius:11px;padding:11px 14px 12px;margin-bottom:13px;
+    background:var(--panel-2)}
+  .rv-impact .ri-lab{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:7px}
+  .ri-line{display:grid;grid-template-columns:1fr auto 14px auto auto;gap:9px;align-items:baseline;
+    font-size:12.5px;font-variant-numeric:tabular-nums;padding:2px 0}
+  .ri-line .ri-n{color:var(--muted)}
+  .ri-line .ri-arrow{color:var(--faint);text-align:center}
+  .ri-line .ri-new{color:var(--ink);font-weight:600}
+  .ri-line .ri-d{min-width:104px;text-align:right;font-weight:600}
+  .ri-line.head .ri-new,.ri-line.head .ri-d{font-size:14px}
+  .ri-up{color:var(--ok)} .ri-dn{color:var(--err)} .ri-flat{color:var(--faint)}
+  .rv-cols{color:var(--faint);font-size:11.5px;margin:-4px 0 12px;line-height:1.5}
+  .rv-cols code{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .rv-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+  .rv-item:last-child{border-bottom:0}
+  .rv-item.skip{opacity:.55}
+  .rv-item input[type=checkbox]{margin-top:2px;width:14px;height:14px;accent-color:var(--accent);
+    cursor:pointer;flex:0 0 auto}
+  .rv-main{flex:1;min-width:0}
+  .rv-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px}
+  .rv-name .rv-key{font-weight:400;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11px;margin-right:7px}
+  .rv-f{display:grid;grid-template-columns:118px 1fr 14px 1fr;gap:8px;align-items:baseline;
+    font-size:12.5px;font-variant-numeric:tabular-nums;padding:1px 0}
+  .rv-f .rv-lbl{color:var(--muted)}
+  .rv-f .rv-old{color:var(--faint);text-align:right;overflow:hidden;text-overflow:ellipsis}
+  .rv-f .rv-arrow{color:var(--faint)}
+  .rv-f .rv-new{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+  .rv-f .rv-new.chg{color:var(--warn)}
+  .rv-warn{color:var(--warn);font-size:11.5px;margin-top:4px;line-height:1.45}
+  .rv-bad{color:var(--err);font-size:12px;margin-top:2px}
+  .rv-sec{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);
+    padding:14px 0 3px;border-top:1px solid var(--line-soft);margin-top:6px}
+  .rv-sec:first-child{border-top:0;margin-top:0;padding-top:4px}
+
   /* ---------- Grid ---------- */
   .wrap{position:absolute;inset:var(--top,57px) 0 0 0;overflow:auto}
   table{border-collapse:separate;border-spacing:0;table-layout:fixed}
@@ -315,6 +386,7 @@
   <input id="search" class="search" type="text" placeholder="Filter campaigns, advertisers, entities…">
   <span id="count" class="count"></span>
   <button id="viewsBtn" class="ghost" title="Date-range presets and saved views">Views ▾</button>
+  <button id="actualsBtn" class="ghost" title="Send Jon/Sara the rows awaiting actuals, then import what comes back">Actuals</button>
   <button id="addBtn" class="primary">+ Add row</button>
   <button id="importBtn" class="ghost" title="Load the imported 2026 rows (local testing)">Import 2026</button>
   <button id="exportBtn" class="ghost">Export CSV</button>
@@ -338,6 +410,7 @@
     <div class="val" id="statBudget">—</div>
     <div class="sub" id="statBudgetSub"></div>
   </div>
+  <button id="waitTally" class="flag-tally wait" style="display:none" title="Show only ended flights still missing actualized spend or margin"></button>
   <button id="flagTally" class="flag-tally" style="display:none" title="Show only rows with an open flag"></button>
   <div class="scope"><span id="statScope"></span><button id="clearFilters" title="Clear the search box and every column filter">Clear</button></div>
 </div>
@@ -386,6 +459,18 @@
       <button id="trashClose" class="ghost">Close</button>
     </div>
     <div id="trashBody" class="hist-body"></div>
+  </div>
+</div>
+
+<div id="actualsModal" class="hist-modal">
+  <div class="hist-card wide">
+    <div class="hist-head">
+      <span class="h-t">Actualized spend &amp; margin</span>
+      <span id="actualsSub" class="h-s"></span>
+      <button id="actualsClose" class="ghost">Close</button>
+    </div>
+    <div id="actualsBody" class="hist-body"></div>
+    <div id="actualsFoot" class="act-foot"></div>
   </div>
 </div>
 
@@ -480,6 +565,28 @@ let filters = {};                          // colKey -> Set(filterKey) OR undefi
 let dateView = null;                       // active date preset key (filters on campaign_end), or null
 let comments = [];                         // billing_comments (flags & notes) for all rows
 let flagOnly = false;                      // when true, grid shows only rows with an open flag
+let awaitingOnly = false;                  // when true, grid shows only ended flights missing actuals
+
+/* ---------- awaiting actuals ----------
+   Spend and margin both arrive from Jon/Sara after the flight ends, so a row that
+   has ENDED with either one still blank is outstanding work — not an error. That
+   set is what the Actuals request exports, and what the toolbar chip counts. It's
+   also why the Actualized Spend total can sit below Total Media Budget: the gap is
+   these rows, not a miscount. */
+const todayISO = () => { const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const blankNum = v => v===null || v===undefined || v==='';
+function needsActuals(r){ return blankNum(r.actual_spend) || blankNum(r.margin); }
+function isAwaiting(r){ return !!r.campaign_end && r.campaign_end <= todayISO() && needsActuals(r); }
+function awaitingCount(){ return rows.filter(isAwaiting).length; }
+// mirrors syncFlagTally: a chip by the widgets that doubles as a filter to the work-list
+function syncWaitTally(){
+  const n = awaitingCount(), el = $('waitTally');
+  el.style.display = n>0 ? 'inline-flex' : 'none';
+  el.innerHTML = `⏳ ${n} awaiting actuals`;
+  el.classList.toggle('active', awaitingOnly);
+  if(!n && awaitingOnly) awaitingOnly = false;   // nothing to show; drop the filter silently
+}
 
 /* ---------- flags & notes helpers ---------- */
 function commentsFor(rowId){ return comments.filter(c=>c.row_id===rowId); }
@@ -608,6 +715,7 @@ function currentList(){
     }
   }
   if(flagOnly) list = list.filter(r=> openFlagsFor(r.id) > 0);   // only rows with an open flag
+  if(awaitingOnly) list = list.filter(isAwaiting);                // only ended flights missing actuals
   if(sortKey){
     const dir = sortDir;
     list.sort((a,b)=>{
@@ -621,7 +729,8 @@ function currentList(){
   }
   return list;
 }
-function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0) + (dateView?1:0) + (flagOnly?1:0); }
+function activeFilterCount(){ return Object.keys(filters).length + (filter?1:0) + (dateView?1:0)
+  + (flagOnly?1:0) + (awaitingOnly?1:0); }
 
 /* ---------- summary strip ----------
    Everything here is computed from the SAME list the grid renders, so the
@@ -698,6 +807,7 @@ function render(){
   $('exportBtn').classList.toggle('on', filt);
   syncViewsBtn();
   syncFlagTally();
+  syncWaitTally();
   // Import button is a one-time seed tool — hide the moment there's any data
   const imp = $('importBtn'); if(imp) imp.style.display = total===0 ? '' : 'none';
   $('empty').style.display = total===0 ? 'flex':'none';
@@ -958,7 +1068,9 @@ $('wrap').addEventListener('click', e=>{
   }
 });
 $('search').addEventListener('input', e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
-$('clearFilters').onclick = ()=>{ filters={}; filter=''; dateView=null; $('search').value=''; closeDropdown(); render(); };
+$('clearFilters').onclick = ()=>{ filters={}; filter=''; dateView=null; flagOnly=false; awaitingOnly=false;
+  $('search').value=''; closeDropdown(); render(); };
+$('waitTally').onclick = ()=>{ awaitingOnly = !awaitingOnly; if(awaitingOnly) flagOnly=false; render(); };
 
 /* ---------- keyboard navigation (Google Sheets-style) ----------
    Arrows move the active cell; Enter/type edits it; Enter commits + moves down,
@@ -969,6 +1081,7 @@ document.addEventListener('keydown', e=>{
   if(editingActive) return;                                   // the open editor owns its keys
   if($('histModal').classList.contains('show')) return;       // history modal open
   if($('trashModal').classList.contains('show')) return;      // trash modal open
+  if($('actualsModal').classList.contains('show')) return;    // actuals request/import open
   if($('dd').classList.contains('show')) return;              // header dropdown open
   if($('viewsMenu').classList.contains('show')) return;       // views menu open
   if($('flagPop').classList.contains('show')) return;         // flag/notes popover open
@@ -1070,7 +1183,8 @@ function pasteBlock(text){
 }
 document.addEventListener('paste', e=>{
   if(editingActive) return;                                      // editing: let the input paste normally
-  if($('histModal').classList.contains('show')||$('trashModal').classList.contains('show')||$('dd').classList.contains('show')) return;
+  if($('histModal').classList.contains('show')||$('trashModal').classList.contains('show')
+     ||$('actualsModal').classList.contains('show')||$('dd').classList.contains('show')) return;
   const ae = document.activeElement;
   if(ae && ae!==document.body && !$('wrap').contains(ae)) return; // paste meant for search / name box
   if(!sel) return;
@@ -1435,7 +1549,7 @@ document.addEventListener('mousedown', e=>{
   if(e.target.closest('#flagPop') || e.target.closest('td.flagcell')) return;
   closeFlagPop();
 });
-$('flagTally').onclick = ()=>{ flagOnly = !flagOnly; render(); };
+$('flagTally').onclick = ()=>{ flagOnly = !flagOnly; if(flagOnly) awaitingOnly=false; render(); };
 
 syncWhoami();
 
@@ -1499,6 +1613,455 @@ $('exportBtn').onclick = ()=>{
         + (activeFilterCount()?' (filtered view)':''), true);
 };
 function csv(v){ v=v==null?'':String(v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+
+/* =====================================================================
+   Actualized spend & margin — request → fill → import
+   ---------------------------------------------------------------------
+   Jon/Sara pull actuals from the platform into their own spreadsheet. Rather
+   than hand-transcribing that in (and rather than the grid's positional paste,
+   which silently mis-assigns every row below a shifted one), the round trip is
+   KEYED:
+
+     1. This tool exports the rows awaiting actuals, each carrying a Row Key,
+        with Actualized Spend and Actualized Margin left blank.
+     2. They fill those two columns and send the sheet back.
+     3. It's pasted here. Rows are matched BY KEY, never by position, and
+        nothing is written until a review screen — including the dollar impact
+        on the back-end rebate — has been accepted.
+
+   Two rules the review depends on:
+     - A blank cell in the returned sheet means "not provided". It is skipped;
+       it NEVER clears a value already in the grid.
+     - An unresolvable or ambiguous key is reported, never guessed at.
+   ===================================================================== */
+const ACT_PERIODS = DATE_VIEWS.concat([{k:'all-ended', label:'All ended flights'}]);
+let actTab = 'request', actPeriod = 'prev-month', actReview = null;
+
+/* A short, stable, spreadsheet-safe handle for a row. The 'AX-' prefix isn't
+   decoration: a bare hex slice like "12e45678" is read by Excel as scientific
+   notation and silently mangled on the way back. */
+function rowKey(id){ return 'AX-' + String(id).replace(/[^0-9a-z]/gi,'').slice(0,8).toLowerCase(); }
+function normKey(s){ return String(s==null?'':s).trim().replace(/^ax[-_\s]+/i,'').replace(/[^0-9a-z]/gi,'').toLowerCase(); }
+// every row whose id starts with this key. 0 = no match, >1 = ambiguous — both are
+// reported to the user rather than resolved by picking one.
+function matchKey(k){
+  const n = normKey(k);
+  if(n.length < 4) return [];
+  return rows.filter(r=> String(r.id).replace(/[^0-9a-z]/gi,'').toLowerCase().startsWith(n));
+}
+
+/* Which rows go in the request: ended flights still missing spend and/or margin,
+   narrowed to a period by campaign_end. Ended-only on purpose — an in-flight
+   campaign has no actuals to give, and listing it just invites a guess. */
+function actualsScope(p){
+  let list = rows.filter(isAwaiting);
+  if(p !== 'all-ended'){
+    const range = viewDateRange(p);
+    if(range) list = list.filter(r=> r.campaign_end>=range[0] && r.campaign_end<=range[1]);
+  }
+  return list.slice().sort((a,b)=>
+    String(a.campaign_end).localeCompare(String(b.campaign_end)) ||
+    String(a.advertiser||'').localeCompare(String(b.advertiser||'')));
+}
+
+/* The request sheet. Margin carries an explicit '%' so the round trip is exact —
+   without it a value like "0.50" is genuinely ambiguous between 50% and 0.5%. */
+const REQ_COLS = [
+  {h:'Row Key',            v:r=> rowKey(r.id), cls:'key'},
+  {h:'Entity',             v:r=> r.entity||''},
+  {h:'Advertiser',         v:r=> r.advertiser||''},
+  {h:'Campaign',           v:r=> r.campaign_label || r.campaign_name || ''},
+  {h:'Flight Start',       v:r=> r.campaign_start||''},
+  {h:'Flight End',         v:r=> r.campaign_end||''},
+  {h:'IO Amount',          v:r=> blankNum(r.io_amount)?'':(+r.io_amount).toFixed(2), cls:'num'},
+  {h:'Actualized Spend',   v:r=> blankNum(r.actual_spend)?'':(+r.actual_spend).toFixed(2), cls:'num', fill:true},
+  {h:'Actualized Margin',  v:r=> blankNum(r.margin)?'':(+r.margin*100).toFixed(2)+'%',      cls:'num', fill:true},
+];
+function reqTable(list, delim){
+  // TSV has no quoting, so a tab or newline inside a campaign name would shift the
+  // whole line. Flatten them to spaces for the clipboard copy; CSV quotes instead.
+  const tsv = v => String(v).replace(/[\t\r\n]+/g,' ');
+  const lines = [REQ_COLS.map(c=>c.h)].concat(list.map(r=> REQ_COLS.map(c=> c.v(r))));
+  return lines.map(cells=> cells.map(delim===','?csv:tsv).join(delim)).join('\r\n');
+}
+/* The async Clipboard API is the good path, but it's unavailable on file:// and can
+   be denied outright by permissions policy — so fall back to the old select-and-copy
+   on REJECTION, not just on absence. Only if both fail does the caller see an error. */
+function copyText(s){
+  const legacy = ()=> new Promise((res,rej)=>{
+    const ta=document.createElement('textarea'); ta.value=s;
+    ta.style.cssText='position:fixed;top:-9999px'; document.body.appendChild(ta);
+    ta.select(); let ok=false;
+    try{ ok = document.execCommand('copy'); }catch(e){}
+    ta.remove();
+    ok ? res() : rej(new Error('copy blocked'));
+  });
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    return navigator.clipboard.writeText(s).catch(legacy);
+  return legacy();
+}
+
+/* ---------- number reading ---------- */
+const near = (a,b,eps)=> !blankNum(a) && Math.abs((+a)-(+b)) < (eps||0.005);
+function parseNum(raw){
+  let s = String(raw==null?'':raw).trim();
+  if(!s) return null;
+  const neg = /^\(.*\)$/.test(s);                        // accountant's negative
+  if(neg) s = s.slice(1,-1);
+  const pct = s.includes('%');
+  const n = parseFloat(s.replace(/[^0-9.\-]/g,''));
+  if(!isFinite(n)) return null;
+  return { n: neg ? -Math.abs(n) : n, pct };
+}
+/* Margin comes back as a percentage, but people type it three ways. '42%' and '42'
+   are unambiguous. A bare 0 < v <= 1 is not: almost always it's 0.42 meaning 42%
+   (that's what we assume), but it COULD be 0.42%. Assumed readings get flagged in
+   the review rather than resolved silently. */
+function parseMargin(raw){
+  const p = parseNum(raw);
+  if(!p) return null;
+  if(p.n === 0) return { v:0, assumed:false };
+  if(p.pct || Math.abs(p.n) > 1) return { v:p.n/100, assumed:false };
+  return { v:p.n, assumed:true };
+}
+
+/* ---------- delimited parsing (handles quoted CSV, tab-separated paste) ---------- */
+function parseDelimited(text, d){
+  const s = String(text).replace(/\r\n?/g,'\n');
+  const out=[]; let row=[], cur='', q=false;
+  for(let i=0;i<s.length;i++){
+    const c = s[i];
+    if(q){
+      if(c==='"'){ if(s[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=c;
+    }
+    else if(c==='"') q=true;
+    else if(c===d){ row.push(cur); cur=''; }
+    else if(c==='\n'){ row.push(cur); out.push(row); row=[]; cur=''; }
+    else cur+=c;
+  }
+  row.push(cur); out.push(row);
+  return out.filter(r=> r.some(c=> String(c).trim()!==''));
+}
+// Locate the three columns we care about BY NAME, so extra columns, reordering, or
+// their own notes column don't break the import.
+function findCols(head){
+  const norm = h => String(h==null?'':h).toLowerCase().replace(/[^a-z]/g,'');
+  const c = {ki:-1, si:-1, mi:-1};
+  head.forEach((h,i)=>{
+    const n = norm(h);
+    if(c.ki<0 && (n.includes('rowkey') || n==='key' || n==='id')) c.ki=i;
+    if(c.si<0 && n.includes('spend'))  c.si=i;
+    if(c.mi<0 && n.includes('margin')) c.mi=i;
+  });
+  return c;
+}
+
+/* Read the pasted sheet into reviewable items. Pure — writes nothing. */
+function analyzeActuals(text){
+  const d = text.includes('\t') ? '\t' : ',';
+  const grid = parseDelimited(text, d);
+  if(!grid.length) return {error:'Nothing to read. Paste the sheet, including its header row.'};
+
+  let hi=-1, cols=null;
+  for(let i=0;i<Math.min(grid.length,6);i++){
+    const c = findCols(grid[i]);
+    if(c.ki>=0 && (c.si>=0 || c.mi>=0)){ hi=i; cols=c; break; }
+  }
+  const headerless = hi<0;
+  let colNames = null;
+  if(headerless){
+    cols = {ki:0, si:7, mi:8};                          // the request sheet's own column order
+  } else {
+    colNames = { key:grid[hi][cols.ki],
+      spend: cols.si>=0 ? grid[hi][cols.si] : null,
+      margin: cols.mi>=0 ? grid[hi][cols.mi] : null };
+  }
+  if(cols.si<0 && cols.mi<0)
+    return {error:'Found a Row Key column but no Actualized Spend or Actualized Margin column.'};
+
+  const items = [];
+  grid.slice(hi+1).forEach((line,i)=>{
+    const keyRaw = line[cols.ki];
+    const spendRaw  = cols.si>=0 ? line[cols.si] : '';
+    const marginRaw = cols.mi>=0 ? line[cols.mi] : '';
+    if(!String(keyRaw||'').trim() && !String(spendRaw||'').trim() && !String(marginRaw||'').trim()) return;
+
+    const it = { line:i+1, keyRaw:String(keyRaw||'').trim(), fields:[], warns:[], include:true, row:null };
+    const hits = matchKey(keyRaw);
+    if(hits.length === 0){
+      it.status = 'unmatched';
+      it.msg = it.keyRaw ? `No campaign has the key ${it.keyRaw}.` : 'This line has no Row Key.';
+      items.push(it); return;
+    }
+    if(hits.length > 1){
+      it.status = 'ambiguous';
+      it.msg = `Key ${it.keyRaw} matches ${hits.length} campaigns — nothing applied.`;
+      items.push(it); return;
+    }
+    const row = hits[0];
+    it.row = row; it.status = 'matched';
+    it.name = row.campaign_name || row.campaign_label || '(unnamed)';
+
+    const sp = parseNum(spendRaw);
+    if(sp){
+      if(!near(row.actual_spend, sp.n)){
+        it.fields.push({ k:'actual_spend', lbl:'Actualized Spend', old:row.actual_spend, val:sp.n,
+                         fmt:money, changed:!blankNum(row.actual_spend) });
+      } else it.sameSpend = true;
+      const io = blankNum(row.io_amount) ? null : +row.io_amount;
+      if(sp.n < 0) it.warns.push('Actualized spend is negative.');
+      else if(sp.n === 0) it.warns.push('Actualized spend is zero.');
+      if(io && Math.abs(sp.n - io)/Math.abs(io) > 0.10)
+        it.warns.push(`Spend is ${pctFmt(Math.abs(sp.n-io)/Math.abs(io))} off the IO amount (${money(io)}).`);
+    }
+    const mg = parseMargin(marginRaw);
+    if(mg){
+      if(!near(row.margin, mg.v, 1e-6)){
+        it.fields.push({ k:'margin', lbl:'Actualized Margin', old:row.margin, val:mg.v,
+                         fmt:pctFmt, changed:!blankNum(row.margin) });
+      } else it.sameMargin = true;
+      if(mg.assumed)
+        it.warns.push(`Read “${String(marginRaw).trim()}” as ${pctFmt(mg.v)}. If they meant ${pctFmt(mg.v/100)}, fix it in the sheet.`);
+      if(mg.v < 0 || mg.v > 0.60)
+        it.warns.push(`Margin ${pctFmt(mg.v)} is outside the usual 0–60% range.`);
+    }
+    items.push(it);
+  });
+
+  return { items, headerless, colNames, delim:d, error:null };
+}
+
+/* ---------- impact ----------
+   The headline check. Everything downstream of spend and margin is recomputed
+   through rebate.js (never a second copy of the formulas), so a mis-keyed decimal
+   or a shifted column shows up here as a total that doesn't look like the month. */
+const IMPACT = [
+  {k:'backend_rebate', lbl:'Total Back-End Rebate', head:true},
+  {k:'rebate_value',   lbl:'Invoice Discount'},
+  {k:'actual_spend',   lbl:'Actualized Spend', raw:true},
+];
+function metric(row, m){
+  const v = m.raw ? row[m.k] : Rebate.derive(row)[m.k];
+  return (typeof v==='number' && isFinite(v)) ? v : 0;
+}
+function impactOf(items){
+  const chosen = items.filter(it=> it.row && it.fields.length && it.include);
+  return IMPACT.map(m=>{
+    const before = rows.reduce((s,r)=> s + metric(r, m), 0);
+    const delta = chosen.reduce((s,it)=>{
+      const after = Object.assign({}, it.row);
+      it.fields.forEach(f=> after[f.k] = f.val);
+      return s + (metric(after, m) - metric(it.row, m));
+    }, 0);
+    return { m, before, after:before+delta, delta };
+  });
+}
+
+/* ---------- panel ---------- */
+function openActuals(){
+  actTab = 'request'; actReview = null;
+  $('actualsModal').classList.add('show');
+  renderActuals();
+}
+function closeActuals(){ $('actualsModal').classList.remove('show'); actReview=null; }
+
+function renderActuals(){
+  const tabs = `<div class="act-tabs">`
+    + `<button class="act-tab${actTab==='request'?' active':''}" data-tab="request">1 · Request</button>`
+    + `<button class="act-tab${actTab==='import' ?' active':''}" data-tab="import">2 · Import</button></div>`;
+  if(actTab === 'request') renderActualsRequest(tabs); else renderActualsImport(tabs);
+}
+
+function renderActualsRequest(tabs){
+  const list = actualsScope(actPeriod);
+  const opts = ACT_PERIODS.map(p=>`<option value="${p.k}"${p.k===actPeriod?' selected':''}>${esc(p.label)}</option>`).join('');
+  let h = tabs
+    + `<div class="act-row"><label for="actPeriod" style="color:var(--muted)">Flights ending in</label>`
+    + `<select id="actPeriod" class="act-sel">${opts}</select>`
+    + `<span style="color:var(--faint)">${list.length} campaign${list.length===1?'':'s'} awaiting actuals</span></div>`
+    + `<p class="act-note">Send this to Jon &amp; Sara. They fill the two highlighted columns — copying the IO amount across when spend came in on budget — and send it back. `
+    + `<b>Leave the Row Key column alone;</b> it's how each number finds its way home. Blank cells are skipped, never treated as zero.</p>`;
+  if(!list.length){
+    h += `<div class="hist-empty">Nothing awaiting actuals in this period.</div>`;
+    $('actualsBody').innerHTML = h;
+    $('actualsFoot').innerHTML = `<span class="grow"></span><button class="ghost" data-act="close">Close</button>`;
+  } else {
+    h += `<div class="act-prev"><table><thead><tr>`
+      + REQ_COLS.map(c=>`<th class="${c.fill?'fill':''}">${esc(c.h)}${c.fill?' ✎':''}</th>`).join('')
+      + `</tr></thead><tbody>`
+      + list.map(r=>`<tr>` + REQ_COLS.map(c=>{
+          const v = c.v(r);
+          return `<td class="${[c.cls||'', c.fill?'fill':''].join(' ')}" title="${esc(v)}">${esc(v)}</td>`;
+        }).join('') + `</tr>`).join('')
+      + `</tbody></table></div>`;
+    $('actualsBody').innerHTML = h;
+    $('actualsFoot').innerHTML = `<span class="grow">${list.length} row${list.length===1?'':'s'} · Row Key, IO amount and flight dates included</span>`
+      + `<button class="ghost" data-act="csv">Download CSV</button>`
+      + `<button class="primary" data-act="copy">Copy to clipboard</button>`;
+  }
+  $('actualsSub').textContent = 'Step 1 — send the request';
+}
+
+function renderActualsImport(tabs){
+  $('actualsSub').textContent = actReview ? 'Step 2 — review before applying' : 'Step 2 — paste what came back';
+  if(!actReview){
+    $('actualsBody').innerHTML = tabs
+      + `<p class="act-note">Paste the returned sheet below — the whole block, header row included. `
+      + `Rows are matched on their Row Key, so the order doesn't have to match anything. Nothing is written until you've reviewed it.</p>`
+      + `<textarea id="actPaste" class="act-ta" spellcheck="false" placeholder="Row Key&#9;Entity&#9;Advertiser&#9;…&#9;Actualized Spend&#9;Actualized Margin&#10;AX-2f3a9b1c&#9;…"></textarea>`;
+    $('actualsFoot').innerHTML = `<span class="grow"></span><button class="primary" data-act="review">Review changes</button>`;
+    const ta = $('actPaste'); if(ta) ta.focus();
+    return;
+  }
+  renderActualsReview(tabs);
+}
+
+function renderActualsReview(tabs){
+  const items = actReview.items;
+  const toApply  = items.filter(it=> it.row && it.fields.length);
+  const nothing  = items.filter(it=> it.row && !it.fields.length);
+  const problems = items.filter(it=> !it.row);
+  const warned   = toApply.filter(it=> it.warns.length).length;
+
+  let h = tabs + `<div class="rv-chips">`
+    + `<span class="rv-chip ok">${toApply.length} to apply</span>`
+    + (nothing.length  ? `<span class="rv-chip">${nothing.length} already match</span>` : '')
+    + (warned          ? `<span class="rv-chip warn">${warned} to check</span>` : '')
+    + (problems.length ? `<span class="rv-chip err">${problems.length} unmatched</span>` : '')
+    + `</div>`
+    + `<div id="rvImpact"></div>`;
+
+  if(actReview.headerless){
+    h += `<div class="rv-cols" style="color:var(--warn)">No header row found — read using the request sheet's own column order `
+       + `(Row Key first, Spend and Margin last). Check the values below before applying.</div>`;
+  } else if(actReview.colNames){
+    const c = actReview.colNames;
+    h += `<div class="rv-cols">Read <code>${esc(c.key)}</code> as the row key`
+       + (c.spend  ? `, <code>${esc(c.spend)}</code> as actualized spend`   : ` · no spend column found`)
+       + (c.margin ? `, <code>${esc(c.margin)}</code> as actualized margin.` : ` · no margin column found.`)
+       + `</div>`;
+  }
+
+  if(toApply.length){
+    h += `<div class="rv-sec">Changes</div>` + toApply.map(it=>{
+      const idx = items.indexOf(it);
+      return `<div class="rv-item${it.include?'':' skip'}" data-i="${idx}">`
+        + `<input type="checkbox" data-i="${idx}"${it.include?' checked':''}>`
+        + `<div class="rv-main"><div class="rv-name"><span class="rv-key">${esc(rowKey(it.row.id))}</span>${esc(it.name)}</div>`
+        + it.fields.map(f=>`<div class="rv-f"><span class="rv-lbl">${esc(f.lbl)}</span>`
+            + `<span class="rv-old">${blankNum(f.old)?'—':esc(f.fmt(f.old))}</span>`
+            + `<span class="rv-arrow">→</span>`
+            + `<span class="rv-new${f.changed?' chg':''}">${esc(f.fmt(f.val))}${f.changed?' (replaces a value)':''}</span></div>`).join('')
+        + it.warns.map(w=>`<div class="rv-warn">⚠ ${esc(w)}</div>`).join('')
+        + `</div></div>`;
+    }).join('');
+  } else {
+    h += `<div class="hist-empty">Nothing to apply — every value read matches what's already here.</div>`;
+  }
+
+  if(problems.length){
+    h += `<div class="rv-sec">Not applied</div>` + problems.map(it=>
+      `<div class="rv-item skip"><div class="rv-main"><div class="rv-name">Line ${it.line}`
+      + (it.keyRaw?` · <span class="rv-key">${esc(it.keyRaw)}</span>`:'') + `</div>`
+      + `<div class="rv-bad">${esc(it.msg)}</div></div></div>`).join('');
+  }
+
+  $('actualsBody').innerHTML = h;
+  renderImpact();
+  syncApplyBtn();
+}
+
+function renderImpact(){
+  const el = $('rvImpact'); if(!el) return;
+  const rowsOut = impactOf(actReview.items).map(x=>{
+    const cls = Math.abs(x.delta) < 0.005 ? 'ri-flat' : (x.delta>0 ? 'ri-up' : 'ri-dn');
+    const sign = x.delta > 0 ? '+' : '';
+    return `<div class="ri-line${x.m.head?' head':''}"><span class="ri-n">${esc(x.m.lbl)}</span>`
+      + `<span class="ri-old" style="color:var(--faint)">${esc(money(x.before))}</span>`
+      + `<span class="ri-arrow">→</span>`
+      + `<span class="ri-new">${esc(money(x.after))}</span>`
+      + `<span class="ri-d ${cls}">${Math.abs(x.delta)<0.005?'no change':sign+money(x.delta)}</span></div>`;
+  }).join('');
+  el.innerHTML = `<div class="rv-impact"><div class="ri-lab">If applied</div>${rowsOut}</div>`;
+}
+function syncApplyBtn(){
+  const n = actReview.items.filter(it=> it.row && it.fields.length && it.include).length;
+  $('actualsFoot').innerHTML = `<button class="ghost" data-act="back">← Paste again</button>`
+    + `<span class="grow"></span>`
+    + `<button class="primary" data-act="apply"${n?'':' disabled'}>Apply to ${n} row${n===1?'':'s'}</button>`;
+}
+
+function applyActuals(){
+  if(!requireEdit()) return;
+  const chosen = actReview.items.filter(it=> it.row && it.fields.length && it.include);
+  if(!chosen.length) return;
+  // One UPDATE per row = one history entry per row, attributed to whoever imported.
+  // Field-scoped, like every other write here: only spend and margin are touched.
+  const jobs = chosen.map(it=>{
+    const row = rows.find(r=>r.id===it.row.id);
+    if(!row) return null;
+    const patch = { updated_by: actor };
+    it.fields.forEach(f=>{ row[f.k]=f.val; patch[f.k]=f.val; });
+    return store.update(row.id, patch);
+  }).filter(Boolean);
+  $('actualsFoot').innerHTML = `<span class="grow">Applying…</span>`;
+  Promise.all(jobs)
+    .then(()=>{ closeActuals(); return reload(); })
+    .then(()=> toast(`Applied actuals to ${jobs.length} row${jobs.length===1?'':'s'}`, true))
+    .catch(err=>{ toast('Import failed: '+err.message, false); syncApplyBtn(); });
+}
+
+/* ---------- panel events ---------- */
+$('actualsBtn').onclick = openActuals;
+$('actualsClose').onclick = closeActuals;
+$('actualsModal').addEventListener('click', e=>{ if(e.target===$('actualsModal')) closeActuals(); });
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && $('actualsModal').classList.contains('show')) closeActuals();
+});
+$('actualsBody').addEventListener('change', e=>{
+  if(e.target.id==='actPeriod'){ actPeriod = e.target.value; renderActuals(); return; }
+  const cb = e.target.closest('input[type=checkbox]');
+  if(cb && actReview){
+    const it = actReview.items[+cb.dataset.i];
+    if(it){ it.include = cb.checked;
+      cb.closest('.rv-item').classList.toggle('skip', !it.include);
+      renderImpact(); syncApplyBtn(); }
+  }
+});
+$('actualsBody').addEventListener('click', e=>{
+  const tab = e.target.closest('.act-tab');
+  if(tab){ actTab = tab.dataset.tab; renderActuals(); }
+});
+$('actualsFoot').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-act]'); if(!b) return;
+  const act = b.dataset.act;
+  if(act==='close') return closeActuals();
+  if(act==='back'){ actReview=null; renderActuals(); return; }
+  if(act==='apply') return applyActuals();
+  if(act==='review'){
+    const text = ($('actPaste')||{}).value || '';
+    if(!text.trim()) return toast('Paste the returned sheet first.', false);
+    const res = analyzeActuals(text);
+    if(res.error) return toast(res.error, false);
+    if(!res.items.length) return toast('No data rows found in that paste.', false);
+    actReview = res; renderActuals(); return;
+  }
+  const list = actualsScope(actPeriod);
+  if(act==='copy'){
+    copyText(reqTable(list, '\t'))
+      .then(()=> toast(`Copied ${list.length} row${list.length===1?'':'s'} — paste into a blank sheet`, true))
+      .catch(()=> toast('Clipboard blocked — use Download CSV instead.', false));
+  }
+  if(act==='csv'){
+    const blob = new Blob([reqTable(list, ',')], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'actuals-request-'+actPeriod+'-'+todayISO()+'.csv';
+    a.click();
+    toast(`Downloaded ${list.length} row${list.length===1?'':'s'}`, true);
+  }
+});
 
 /* ---------- IO Tool handoff (same-origin localStorage inbox) ----------
    The queue is the ONLY copy of a sent IO, so treat it as durable: never drop an

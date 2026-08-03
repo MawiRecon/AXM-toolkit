@@ -38,6 +38,44 @@ An overridden cell shows an orange dot.
 intentional divergence: on rows where Margin isn't entered yet, this tool shows
 a blank instead of the Sheet's placeholder `0` gross / negative rebate.
 
+## Actualized spend & margin (the **Actuals** button)
+
+Actuals come from Jon/Sara, out of platform reporting, in their own spreadsheet.
+This is the keyed round trip that gets them in without hand-transcription:
+
+1. **Request** — pick a period; the tool lists every *ended* flight still missing
+   spend and/or margin and emits a sheet (Copy to clipboard, or Download CSV)
+   with **Actualized Spend** and **Actualized Margin** blank. Copy or download it
+   and send it over. They fill the two columns — usually copying the IO amount
+   straight across into spend — and send it back.
+2. **Import** — paste the returned block. Rows match on their **Row Key**, so the
+   order doesn't have to match anything.
+3. **Review** — before a single write: what changes, which values *replace* an
+   existing number, what didn't match, and the **dollar impact** on Total Back-End
+   Rebate / Invoice Discount / Actualized Spend. Uncheck anything you don't want.
+   Apply writes one field-scoped update per row → one history entry, attributed.
+
+Why it works this way:
+
+- **Never positional.** The grid's Excel paste fills by row position; one inserted
+  row in their sheet would shift every margin below it onto the wrong campaign,
+  silently. Keys make that failure mode impossible.
+- **`AX-` prefix on the key** — a bare hex slice like `12e45678` is read by Excel
+  as scientific notation and mangled on the way back.
+- **Margin exports with a `%`** so the round trip is exact. On the way in, `42%`
+  and `42` are unambiguous; a bare `0.42` is read as 42% and **flagged as an
+  assumption** in the review.
+- **A blank cell means "not provided"** — it's skipped, never written as zero, and
+  never clears a value already in the grid.
+- **An unmatched or ambiguous key is reported, never guessed at.**
+- Warnings (not blocks) on: spend >10% off the IO amount, negative/zero spend,
+  margin outside 0–60%, and assumed decimal readings.
+
+Since spend is now left blank until actuals come back, `Rebate Value` (L) and
+`Sent to Grapeseed` (M) stay blank on those rows too — they're computed off spend.
+The **⏳ N awaiting actuals** chip by the widgets counts them and filters to them;
+that set is also the gap between Total Media Budget and Actualized Spend.
+
 ## Two backends
 
 `config.js` → `BACKEND`:
