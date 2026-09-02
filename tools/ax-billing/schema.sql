@@ -217,3 +217,51 @@ create policy "auth update comments" on billing_comments for update to authentic
 grant select, insert, update on billing_comments to authenticated;   -- no delete: resolve, don't destroy
 revoke all on billing_comments from anon;
 alter publication supabase_realtime add table billing_comments;
+
+
+-- =====================================================================
+-- CHANNEL TYPE  (added 2026-09-02)
+-- ---------------------------------------------------------------------
+-- Last data column in the grid ("Channel Type"). Holds the campaign's channel
+-- mix as a sorted, comma-joined string — "Connected TV / OTT, In-Stream Video".
+--
+-- Text, not jsonb, and SORTED on write. Text keeps CSV export, the header filter
+-- dropdown and free-text search working with no special-casing; sorting means one
+-- mix always renders as one string, so the filter dropdown doesn't list
+-- "A, B" and "B, A" as two different values. The IO tool sends the raw array and
+-- the billing app's chanText() normalizes it.
+--
+-- ---- EXISTING DEPLOYMENTS: run this once. -------------------------------
+alter table billing_rows add column if not exists channels text default '';
+
+-- ---- BACKFILL (already run once on 2026-09-02; 70 rows) ------------------
+-- Source is io_history.fields->'channels'. There is NO id linking billing_rows to
+-- io_history — the IO tool's billing handoff never carried one — so the join is on
+-- advertiser + campaign + start date. That triple was verified to produce zero
+-- conflicting channel mixes; the `having count(distinct chan) = 1` guard keeps it
+-- that way if the query is ever re-run against new history.
+--
+-- HOW FAR BACK IT REACHES: io_history's first row is 2026-07-09, so nothing before
+-- that date can be backfilled from this source at all — the data was never
+-- recorded. 290 of the 302 unfilled rows started before that date. Older rows must
+-- be filled by hand (or from Monday board 8887555175, whose Channels column goes
+-- back to 2025-05, but which is a PROPOSAL board: one item per submission keyed
+-- only by advertiser, and its mixes are frequently the full channel menu rather
+-- than what actually ran — a lead, not a source of truth).
+--
+-- with h as (
+--   select lower(btrim(advertiser)) as adv, lower(btrim(campaign)) as camp, flight_start,
+--          (select string_agg(value, ', ' order by value)
+--             from jsonb_array_elements_text(fields->'channels') t(value)) as chan
+--   from io_history where jsonb_array_length(coalesce(fields->'channels','[]'::jsonb)) > 0
+-- ),
+-- safe as (
+--   select adv, camp, flight_start, min(chan) as chan from (select distinct * from h) d
+--   group by adv, camp, flight_start having count(distinct chan) = 1
+-- )
+-- update billing_rows b set channels = safe.chan, updated_by = 'Channel backfill', updated_at = now()
+--   from safe
+--  where b.deleted_at is null and coalesce(b.channels,'') = ''
+--    and safe.adv = lower(btrim(b.advertiser))
+--    and safe.camp = lower(btrim(b.campaign_label))
+--    and safe.flight_start = b.campaign_start;

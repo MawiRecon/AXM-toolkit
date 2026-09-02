@@ -522,13 +522,20 @@ const COLS = [
   {k:'bill_direct',       lt:'Y', label:'Bill Client Direct', type:'bool',  w:88},
   {k:'notes',             lt:'Z', label:'Notes',              type:'text',  w:220},
   {k:'internal_note',     lt:'AA',label:'Sara/Jon Only',      type:'chkna', w:110},
+  /* Channel mix as a sorted, comma-joined list ("Connected TV / OTT, In-Stream
+     Video") — see chanText(). Plain text on purpose: it keeps CSV export, the
+     header filter dropdown and free-text search working with no special-casing.
+     New IO-Tool rows arrive with this filled in; older rows were backfilled from
+     io_history where one could be matched (see the CHANNEL TYPE block in
+     schema.sql, which documents how far back that reaches and why). */
+  {k:'channels',          lt:'AB',label:'Channel Type',        type:'text',  w:200},
   /* Audit columns — written by the database, never by the grid. Hidden behind the
      toolbar toggle so they don't widen the everyday view. "Added" is when the row
      entered THIS tool (for the 2026 seed rows that's the import date, not the
      campaign's original date in the Sheet); "Last updated" is the staleness signal. */
-  {k:'created_at',        lt:'AB',label:'Added',              type:'ts',    w:160, meta:true},
-  {k:'updated_at',        lt:'AC',label:'Last Updated',       type:'ts',    w:160, meta:true},
-  {k:'updated_by',        lt:'AD',label:'Updated By',         type:'text',  w:140, meta:true, ro:true},
+  {k:'created_at',        lt:'AC',label:'Added',              type:'ts',    w:160, meta:true},
+  {k:'updated_at',        lt:'AD',label:'Last Updated',       type:'ts',    w:160, meta:true},
+  {k:'updated_by',        lt:'AE',label:'Updated By',         type:'text',  w:140, meta:true, ro:true},
   // Flags & notes — no row data of its own; the cell reflects this row's comment
   // threads (see billing_comments). Sits last, just before the History/delete column.
   {k:'_flag',             lt:'',  label:'Flag',               type:'flag',  w:58},
@@ -2207,6 +2214,14 @@ const INBOX = 'ax_billing_inbox';
 let authed = false;        // set by afterAuth(); gates the drain
 let drainInFlight = false; // serialize drains so two can't race on the same seeds
 
+/* Channel mix -> one cell. Sorted, not in the order the IO's checkboxes were
+   ticked: the same mix must render as the same string every time, or the column's
+   filter dropdown lists "A, B" and "B, A" as two different values. The backfill
+   normalizes the same way. */
+function chanText(v){
+  const list = Array.isArray(v) ? v : String(v||'').split(',');
+  return list.map(x=>String(x).trim()).filter(Boolean).sort().join(', ');
+}
 function inboxUuid(){
   try { if(crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(e){}
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
@@ -2248,6 +2263,7 @@ function drainInbox(){
     const seed = newRow({
       id: it.id,
       campaign_label:label, entity:(it.entity||'').trim(), advertiser:(it.advertiser||'').trim(),
+      channels: chanText(it.channels),
       io_amount:it.io_amount!=null?+it.io_amount:null,
       campaign_start:it.start||null, campaign_end:it.end||null,
       year:it.year || (it.start? +String(it.start).slice(0,4):null),

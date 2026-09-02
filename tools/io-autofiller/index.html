@@ -1934,6 +1934,7 @@ document.addEventListener('DOMContentLoaded', () => {
       advertiser: v.advertiser,
       campaign:   v.campaign,
       io_amount:  v.budget,
+      channels:   v.channels || [],   // billing joins this into its Channel Type cell
       start:      v.startDate,
       end:        v.endDate,
       year:       v.startDate ? Number(String(v.startDate).slice(0,4)) : null,
