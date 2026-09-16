@@ -50,8 +50,10 @@ create table if not exists io_history (
 create index if not exists io_history_advertiser_idx  on io_history (lower(advertiser));
 create index if not exists io_history_campaign_idx    on io_history (lower(campaign));
 create index if not exists io_history_created_at_idx  on io_history (created_at desc);
-create unique index if not exists io_history_monday_idx on io_history (monday_item_id)
-  where monday_item_id is not null;
+-- Full (not partial) unique index: PostgREST upserts with
+-- on_conflict=monday_item_id can't target a partial index (42P10).
+-- Multiple NULLs are still allowed.
+create unique index if not exists io_history_monday_idx on io_history (monday_item_id);
 
 alter table io_history enable row level security;
 
@@ -65,3 +67,21 @@ grant select, insert, update, delete on io_history to anon;
 
 -- keep the picker in sync across open tabs
 alter publication supabase_realtime add table io_history;
+
+-- ---------------------------------------------------------------------
+-- MIGRATION (2026-09-16): Slack hand-off for OpenClaw
+-- "Push to Monday" sets notify_pending true on that row. OpenClaw (a
+-- separate, general-purpose agent outside this Ax scope — it is not
+-- part of this repo) polls for notify_pending = true, posts advertiser /
+-- flight dates / budget from `fields` to its own axm-io Slack channel,
+-- then flips the row back to false. This repo only sets the flag; the
+-- posting logic lives in OpenClaw's own workspace.
+-- ---------------------------------------------------------------------
+alter table io_history add column if not exists notify_pending boolean not null default false;
+
+-- ---------------------------------------------------------------------
+-- MIGRATION (2026-09-16): make the monday_item_id index non-partial so
+-- the Push-to-Monday upsert (on_conflict=monday_item_id) works.
+-- ---------------------------------------------------------------------
+drop index if exists io_history_monday_idx;
+create unique index io_history_monday_idx on io_history (monday_item_id);

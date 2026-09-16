@@ -2030,6 +2030,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const s = $("status"); s.style.display="block"; s.className="status"; s.innerHTML = '<span class="spin"></span>Creating Contracts item…';
     try {
       const result = await createMondayContractItem();
+      $("monday_item").value = result.id;
+      iohistorySave({ mondayItemId: String(result.id), notifyPending: true }); // non-blocking; flags the row for OpenClaw's axm-io post
       const dropNotes = [];
       for(const [k, arr] of Object.entries(result.dropped || {})){
         if(arr && arr.length) dropNotes.push(`${k}: dropped ${arr.length} unmatched (${arr.join(', ')})`);
@@ -2085,12 +2087,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function iohistorySnapshot(){ return buildIoSnapshot(); }
 
   /* Upsert on monday_item_id when present (so re-fetching the same
-     Monday submission overwrites); insert otherwise. */
-  async function iohistorySave(){
+     Monday submission overwrites); insert otherwise. Pass
+     { notifyPending: true } right after a fresh Push to Monday so
+     OpenClaw picks the row up for its axm-io Slack post. */
+  async function iohistorySave(opts){
+    opts = opts || {};
     const c = iohistoryInit(); if(!c) return null;
     const snap = iohistorySnapshot();
     if(!snap.advertiser && !snap.campaign) return null; // don't persist empties
-    const mondayId = ($("monday_item").value.trim().match(/(\d{6,})/) || [,''])[1] || null;
+    const mondayId = opts.mondayItemId || ($("monday_item").value.trim().match(/(\d{6,})/) || [,''])[1] || null;
     const v = collectIoValues();
     const row = {
       advertiser: snap.advertiser, agency: snap.agency, campaign: snap.campaign,
@@ -2098,6 +2103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       io_title: v.ioTitle, monday_item_id: mondayId,
       fields: snap, source: 'io-tool', updated_at: new Date().toISOString(),
     };
+    if(opts.notifyPending) row.notify_pending = true;
     try {
       let res;
       if(mondayId){
