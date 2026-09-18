@@ -114,10 +114,14 @@
         <button class="btn primary" id="capture">Capture page</button>
         <button class="btn" id="pastePage" title="Upload a screenshot instead">Upload…</button>
       </div>
-      <label class="chk"><input type="checkbox" id="fullPage"> Full page (scroll capture)</label>
+      <label class="chk"><input type="checkbox" id="fullPage"> Full page (grab the whole scroll)</label>
       <label class="chk"><input type="checkbox" id="blockCookies" checked> Block cookie banners</label>
       <label class="chk"><input type="checkbox" id="blockAds"> Block existing ads</label>
-      <div class="hint">iPhone / Tablet capture uses a real mobile viewport — no dev-tools fiddling.</div>
+      <label class="fld" id="panRow" style="display:none;margin-top:10px">
+        <span>Scroll position — reveal lower content</span>
+        <input type="range" id="pagePan" class="slider" min="0" max="100" value="0">
+      </label>
+      <div class="hint">Turn on <b>Full page</b> when the ad/video sits below the fold, then slide (or drag the page) down to it. iPhone / Tablet use a real mobile viewport.</div>
     </div>
 
     <!-- ONLINE: creative -->
@@ -231,6 +235,7 @@
     logo:null,              // {x,y,w,h} natural — ctv logo
     logoAspect:1,
     progPct:35,
+    pagePanY:0,             // 0..1 — vertical pan of the captured page within the screen
     sel:null                // currently selected layer id
   };
 
@@ -279,7 +284,7 @@
     frameImg.onload = function(){ layout(); render(); };
     // reset screen content on device change (keep creative)
     screenImg.style.display='none'; screenImg.removeAttribute('src');
-    if(state.mode==='ctv'){ /* still shown via screenImg */ }
+    state.pagePanY=0; $('pagePan').value=0; $('panRow').style.display='none';
     layout(); render();
   }
 
@@ -334,6 +339,10 @@
     place(screenClip, state.screen);
     screenClip.style.borderRadius=(state.radius*s)+'px';
     screenClip.classList.toggle('calib', $('calib').checked);
+    // vertical pan of the captured page (online); CTV still stays centered
+    var oy = state.mode==='ctv' ? 50 : (state.pagePanY*100);
+    screenImg.style.objectPosition = '50% '+oy+'%';
+    screenClip.style.cursor = (state.mode==='online' && !$('calib').checked && screenImg.getAttribute('src')) ? 'grab' : '';
 
     // creative (online)
     if(state.mode==='online' && state.cre){
@@ -394,6 +403,23 @@
   makeInteractive(screenClip,'screen',{ disabled:function(){ return !$('calib').checked; }, min:20 });
   makeInteractive(creative,'cre',{ aspect:function(){ return $('lockAspect').checked; }, min:16 });
   makeInteractive(ctvLogo,'logo',{ aspect:function(){ return true; }, min:16 });
+
+  // drag the captured page up/down to reveal lower content (online, when not calibrating)
+  screenClip.addEventListener('pointerdown', function(e){
+    if(state.mode!=='online' || $('calib').checked || !screenImg.getAttribute('src')) return;
+    if(e.target && e.target.dataset && e.target.dataset.dir) return;   // a resize handle
+    e.preventDefault(); state.sel=null;
+    var sy=e.clientY, start=state.pagePanY, hpx=Math.max(40, state.screen.h*state.sc);
+    screenClip.style.cursor='grabbing';
+    function mv(ev){
+      var dy=ev.clientY-sy;                     // drag up → reveal lower content
+      state.pagePanY=Math.max(0, Math.min(1, start - dy/(hpx*1.3)));
+      $('pagePan').value=Math.round(state.pagePanY*100); render();
+    }
+    function up(){ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); render(); }
+    document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+  });
+  $('pagePan').addEventListener('input', function(){ state.pagePanY=(+this.value)/100; render(); });
 
   // deselect on stage bg
   stage.addEventListener('pointerdown', function(e){ if(e.target===stage||e.target===frameImg){ state.sel=null; render(); } });
@@ -469,9 +495,11 @@
   });
   function loadPageFromFile(file){
     var rd=new FileReader();
-    rd.onload=function(){ screenImg.src=rd.result; screenImg.style.display='block'; render(); };
+    rd.onload=function(){ screenImg.src=rd.result; screenImg.style.display='block'; pageLoaded(); render(); };
     rd.readAsDataURL(file);
   }
+  // reveal the scroll-position slider and reset pan whenever a fresh page loads
+  function pageLoaded(){ state.pagePanY=0; $('pagePan').value=0; $('panRow').style.display=''; }
   $('capture').addEventListener('click', function(){
     var url=$('url').value.trim();
     if(!/^https?:\/\//i.test(url)){ toast('Enter a full URL (https://…)', false); return; }
@@ -489,7 +517,7 @@
     }).then(function(r){
       var ct=r.headers.get('content-type')||'';
       if(r.ok && ct.indexOf('image')>=0) return r.blob().then(function(b){
-        var u=URL.createObjectURL(b); screenImg.src=u; screenImg.style.display='block'; render(); toast('Page captured');
+        var u=URL.createObjectURL(b); screenImg.src=u; screenImg.style.display='block'; pageLoaded(); render(); toast('Page captured');
       });
       return r.json().then(function(j){
         if(r.status===503) toast('Screenshot key not set yet — add SCREENSHOTONE_ACCESS_KEY in Supabase. Use Upload… for now.', false);
@@ -627,7 +655,8 @@
     var sr=state.screen;
     if(screenImg.getAttribute('src') && screenImg.complete && screenImg.naturalWidth){
       ctx.save(); roundPath(ctx, sr.x, sr.y, sr.w, sr.h, state.radius); ctx.clip();
-      drawCover(ctx, screenImg, sr.x, sr.y, sr.w, sr.h, 0.5, 0);
+      var ay = state.mode==='ctv' ? 0.5 : state.pagePanY;
+      drawCover(ctx, screenImg, sr.x, sr.y, sr.w, sr.h, 0.5, ay);
       ctx.restore();
     }
     // 3. overlays

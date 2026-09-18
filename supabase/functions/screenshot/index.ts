@@ -76,7 +76,8 @@ Deno.serve(async (req: Request) => {
     // networkidle2 (near-idle) instead of networkidle0 (fully idle): ad/tracker-heavy
     // news sites never go fully idle, which would crawl to the timeout.
     p.set("wait_until", "networkidle2");
-    p.set("timeout", "30");
+    // Full-page captures of large sites render slowly — give them more headroom.
+    p.set("timeout", body.fullPage ? "60" : "30");
 
     const r = await fetch("https://api.screenshotone.com/take?" + p.toString());
     if (!r.ok) {
