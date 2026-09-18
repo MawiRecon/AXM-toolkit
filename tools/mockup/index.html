@@ -450,27 +450,39 @@
 
   /* ---------- creative upload ---------- */
   function loadCreativeFromFile(file){
-    if(!file || !/^image\//.test(file.type)){ toast('Please choose an image', false); return; }
+    // some valid image files report an empty MIME type — only reject a non-empty non-image
+    if(!file || (file.type && !/^image\//.test(file.type))){ toast('Please choose an image file', false); return; }
     var rd=new FileReader();
+    rd.onerror=function(){ toast('Could not read that file', false); };
     rd.onload=function(){
       var img=new Image();
+      img.onerror=function(){ toast('That image could not be loaded', false); };
       img.onload=function(){
         state.creAspect = img.naturalWidth/img.naturalHeight;
         creativeImg.src=img.src;
         // default placement: ~34% of screen width, centered-ish upper area
         var sr=state.screen, w=sr.w*0.34, h=w/state.creAspect;
         state.cre={ x:sr.x+sr.w*0.5-w/2, y:sr.y+sr.h*0.18, w:w, h:h };
-        state.sel='creative'; applyPreset(); render();
+        state.sel='creative'; applyPreset(); render(); toast('Creative added — drag to position');
       };
       img.src=rd.result;
     };
     rd.readAsDataURL(file);
   }
-  function wireDrop(dropEl, cb){
-    dropEl.addEventListener('click', function(){
-      var i=document.createElement('input'); i.type='file'; i.accept='image/*';
-      i.onchange=function(){ if(i.files[0]) cb(i.files[0]); }; i.click();
+  // Open a native file picker reliably. The <input> must be attached to the DOM
+  // before .click() — a detached input silently no-ops in some browsers/webviews.
+  function pickFile(accept, cb){
+    var i=document.createElement('input'); i.type='file'; i.accept=accept||'image/*';
+    i.style.cssText='position:fixed;left:-9999px;opacity:0';
+    document.body.appendChild(i);
+    i.addEventListener('change', function(){
+      if(i.files && i.files[0]) cb(i.files[0]);
+      if(i.parentNode) i.parentNode.removeChild(i);
     });
+    i.click();
+  }
+  function wireDrop(dropEl, cb){
+    dropEl.addEventListener('click', function(){ pickFile('image/*', cb); });
     ['dragover','dragenter'].forEach(function(ev){ dropEl.addEventListener(ev,function(e){ e.preventDefault(); dropEl.classList.add('over'); }); });
     ['dragleave','drop'].forEach(function(ev){ dropEl.addEventListener(ev,function(e){ e.preventDefault(); dropEl.classList.remove('over'); }); });
     dropEl.addEventListener('drop', function(e){ var f=e.dataTransfer.files[0]; if(f) cb(f); });
@@ -489,10 +501,7 @@
   $('crePreset').addEventListener('change', function(){ applyPreset(); render(); });
 
   /* ---------- page capture ---------- */
-  $('pastePage').addEventListener('click', function(){
-    var i=document.createElement('input'); i.type='file'; i.accept='image/*';
-    i.onchange=function(){ if(i.files[0]) loadPageFromFile(i.files[0]); }; i.click();
-  });
+  $('pastePage').addEventListener('click', function(){ pickFile('image/*', loadPageFromFile); });
   function loadPageFromFile(file){
     var rd=new FileReader();
     rd.onload=function(){ screenImg.src=rd.result; screenImg.style.display='block'; pageLoaded(); render(); };
@@ -580,8 +589,7 @@
   $('clearLogo').addEventListener('click', function(){ selectedLogo=null; state.logo=null; ctvLogoImg.removeAttribute('src'); renderLogoSel(); render(); });
   $('addLogo').addEventListener('click', function(){
     if(!db){ toast('Library unavailable', false); return; }
-    var i=document.createElement('input'); i.type='file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
-    i.onchange=function(){ if(i.files[0]) uploadLogo(i.files[0]); }; i.click();
+    pickFile('image/png,image/svg+xml,image/jpeg,image/webp', uploadLogo);
   });
   function uploadLogo(file){
     var name=(file.name||'logo').replace(/\.[^.]+$/,'');
