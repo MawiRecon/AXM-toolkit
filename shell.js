@@ -36,6 +36,14 @@ const TOOLS = [
     src: 'tools/l2-audience/index.html',
     // target / audience
     icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>'
+  },
+  {
+    id: 'mockup',
+    name: 'Mockup Studio',
+    desc: 'Device + ad mockups for decks',
+    src: 'tools/mockup/index.html',
+    // monitor / device
+    icon: '<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>'
   }
 ];
 

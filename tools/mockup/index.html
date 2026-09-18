@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup Studio</title>
+<link rel="stylesheet" href="../../theme.css?v=2">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:flex;gap:16px;height:100vh;padding:16px}
+  /* ---- left control column ---- */
+  .side{width:344px;flex:none;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .card h2 .sub{color:var(--faint);font-weight:400;font-size:11.5px}
+  label.fld{display:block;margin-bottom:10px}
+  label.fld > span{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;letter-spacing:.02em;text-transform:uppercase}
+  input[type=text],input[type=url],select{
+    width:100%;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font:inherit;outline:none
+  }
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+  .seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:7px 8px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:var(--accent-ink)}
+  .btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);padding:8px 12px;border-radius:8px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;justify-content:center}
+  .btn:hover{border-color:var(--border-strong)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .btn.primary:hover{background:var(--accent-hover)}
+  .btn.wide{width:100%}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .btn.sm{padding:5px 9px;font-size:11.5px}
+  .row{display:flex;gap:8px}
+  .row > *{flex:1}
+  .drop{border:1.5px dashed var(--border-strong);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:12.5px;cursor:pointer;transition:.12s}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--ink);background:var(--accent-tint)}
+  .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:7px;cursor:pointer}
+  .chk input{accent-color:var(--accent);width:15px;height:15px}
+  .hint{font-size:11.5px;color:var(--faint);line-height:1.45}
+  .slider{width:100%;accent-color:var(--accent)}
+  /* logo library */
+  .logos{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:4px;max-height:180px;overflow:auto}
+  .logo{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;padding:5px}
+  .logo.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--focus-ring)}
+  .logo img{max-width:100%;max-height:100%;object-fit:contain}
+  .logo .del{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:0;font-size:11px;line-height:1;cursor:pointer;display:none}
+  .logo:hover .del{display:block}
+  /* ---- stage ---- */
+  .stagewrap{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+  .stagewrap .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px;pointer-events:none;text-align:center;padding:24px}
+  #stage{position:relative;user-select:none;touch-action:none}
+  #frameImg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  #screenClip{position:absolute;overflow:hidden;background:#fff}
+  #screenClip img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 0%}
+  #screenClip.calib{outline:2px dashed var(--accent);outline-offset:-1px}
+  .layer{position:absolute;cursor:move}
+  #creative{box-shadow:0 1px 10px rgba(0,0,0,.28);outline:1px solid rgba(0,0,0,.15)}
+  #creative img{width:100%;height:100%;display:block;object-fit:fill}
+  #ctvLogo img{width:100%;height:100%;object-fit:contain}
+  /* progress bar */
+  #progBar{position:absolute;pointer-events:none}
+  #progBar .track{position:absolute;inset:0;background:rgba(255,255,255,.32);border-radius:999px}
+  #progBar .fill{position:absolute;left:0;top:0;bottom:0;background:#fff;border-radius:999px}
+  #progBar .knob{position:absolute;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.4)}
+  /* resize handles */
+  .rh{position:absolute;width:14px;height:14px;background:var(--accent);border:2px solid #fff;border-radius:50%;z-index:5;display:none}
+  #screenClip.calib .rh{display:block}
+  .selectable.sel .rh{display:block}
+  .rh-nw{left:-7px;top:-7px;cursor:nwse-resize}
+  .rh-ne{right:-7px;top:-7px;cursor:nesw-resize}
+  .rh-sw{left:-7px;bottom:-7px;cursor:nesw-resize}
+  .rh-se{right:-7px;bottom:-7px;cursor:nwse-resize}
+  .selectable.sel{outline:2px solid var(--accent);outline-offset:0}
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#1b1b19;border:1px solid var(--line);color:var(--ink);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:50;max-width:520px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.err{border-color:var(--err);color:#f2c4bd}
+  .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .divider{height:1px;background:var(--line-soft);margin:12px -14px}
+  .mini{font-size:11px;color:var(--faint);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- ================= CONTROLS ================= -->
+  <aside class="side">
+    <div class="card">
+      <h2>Mockup Studio <span class="sub">AXM</span></h2>
+      <div class="seg" id="modeSeg">
+        <button data-mode="online" class="on">Online (Display / OLV)</button>
+        <button data-mode="ctv">CTV</button>
+      </div>
+      <label class="fld" style="margin-top:12px">
+        <span>Device</span>
+        <select id="device"></select>
+      </label>
+    </div>
+
+    <!-- ONLINE: page capture -->
+    <div class="card" id="pageCard">
+      <h2>Webpage</h2>
+      <label class="fld">
+        <span>Page URL</span>
+        <input type="url" id="url" placeholder="https://example.com/article">
+      </label>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn primary" id="capture">Capture page</button>
+        <button class="btn" id="pastePage" title="Upload a screenshot instead">Upload…</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="fullPage"> Full page (scroll capture)</label>
+      <label class="chk"><input type="checkbox" id="blockCookies" checked> Block cookie banners</label>
+      <label class="chk"><input type="checkbox" id="blockAds"> Block existing ads</label>
+      <div class="hint">iPhone / Tablet capture uses a real mobile viewport — no dev-tools fiddling.</div>
+    </div>
+
+    <!-- ONLINE: creative -->
+    <div class="card" id="creativeCard">
+      <h2>Ad creative</h2>
+      <div class="drop" id="creativeDrop">Drop banner / video still here<br>or click to choose</div>
+      <label class="fld" style="margin-top:10px">
+        <span>Size preset (locks aspect)</span>
+        <select id="crePreset">
+          <option value="">Keep image aspect</option>
+          <option value="300x250">Medium Rectangle · 300×250</option>
+          <option value="728x90">Leaderboard · 728×90</option>
+          <option value="300x600">Half Page · 300×600</option>
+          <option value="160x600">Wide Skyscraper · 160×600</option>
+          <option value="970x250">Billboard · 970×250</option>
+          <option value="320x50">Mobile Banner · 320×50</option>
+          <option value="320x480">Mobile Interstitial · 320×480</option>
+          <option value="16x9">Video 16:9</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="lockAspect" checked> Lock aspect ratio while resizing</label>
+      <label class="chk"><input type="checkbox" id="showProgress"> Video creative — show progress bar (OLV)</label>
+      <label class="fld" id="progRow" style="display:none">
+        <span>Progress</span>
+        <input type="range" id="progressPct" class="slider" min="0" max="100" value="35">
+      </label>
+      <div class="hint">Drag to move · corner handles to resize · arrow keys nudge · Delete removes.</div>
+    </div>
+
+    <!-- CTV: still -->
+    <div class="card" id="ctvCard" style="display:none">
+      <h2>CTV spot</h2>
+      <div class="drop" id="ctvDrop">Drop the creative still here<br>or click to choose</div>
+      <div class="hint" style="margin-top:10px">The creative fills the TV screen. Add a publisher logo below.</div>
+    </div>
+
+    <!-- CTV: logo library -->
+    <div class="card" id="logoCard" style="display:none">
+      <h2>Publisher logo <span class="sub">shared library</span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn sm" id="addLogo">Upload logo…</button>
+        <button class="btn sm" id="clearLogo">No logo</button>
+      </div>
+      <div class="logos" id="logoGrid"></div>
+      <div class="mini" id="logoStatus">Loading library…</div>
+    </div>
+
+    <!-- Screen calibration -->
+    <div class="card">
+      <h2>Screen area <span class="sub">per device</span></h2>
+      <label class="chk"><input type="checkbox" id="calib"> Adjust screen area (drag / resize the screen)</label>
+      <label class="fld">
+        <span>Corner radius</span>
+        <input type="range" id="radius" class="slider" min="0" max="80" value="10">
+      </label>
+      <div class="row">
+        <button class="btn sm" id="saveFrame">Save for team</button>
+        <button class="btn sm" id="resetFrame">Reset default</button>
+      </div>
+      <div class="mini">Fine-tune once per device; saved for everyone.</div>
+    </div>
+
+    <!-- Export -->
+    <div class="card">
+      <h2>Export</h2>
+      <div class="row">
+        <button class="btn primary" id="download">Download PNG</button>
+        <button class="btn" id="copy">Copy image</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= STAGE ================= -->
+  <div class="stagewrap" id="stagewrap">
+    <div class="empty" id="emptyMsg">Choose a device and add creative to start.</div>
+    <div id="stage" style="display:none">
+      <img id="frameImg" alt="device frame">
+      <div id="screenClip"><img id="screenImg" alt="" style="display:none"></div>
+      <div class="layer selectable" id="creative" style="display:none"><img alt="creative"></div>
+      <div class="layer" id="progBar" style="display:none"><div class="track"></div><div class="fill"></div><div class="knob"></div></div>
+      <div class="layer selectable" id="ctvLogo" style="display:none"><img alt="logo"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  "use strict";
+  var CFG = window.AX_MOCKUP_CONFIG;
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- device frames (defaults; overridable per team) ---------- */
+  var FRAMES = {
+    laptop: { label:'Laptop',        img:'frames/laptop.png', natW:1500, natH:1110, rect:{x:253,y:230,w:992,h:620}, radius:14, capture:true },
+    tablet: { label:'Tablet (iPad)', img:'frames/tablet.png', natW:578,  natH:800,  rect:{x:20,y:22,w:538,h:756},   radius:20, capture:true },
+    iphone: { label:'iPhone',        img:'frames/iphone.png', natW:450,  natH:680,  rect:{x:85,y:20,w:283,h:616},   radius:48, capture:true },
+    ctv:    { label:'CTV / TV',      img:'frames/ctv.png',    natW:1157, natH:740,  rect:{x:11,y:10,w:1135,h:638},  radius:3,  capture:false }
+  };
+  var ONLINE_DEVICES = ['laptop','tablet','iphone'];
+
+  /* ---------- state ---------- */
+  var state = {
+    mode:'online', device:'laptop', sc:1,
+    screen:null,            // {x,y,w,h} natural, current device (calibration)
+    radius:10,
+    cre:null,               // {x,y,w,h} natural — online creative
+    creAspect:1,
+    logo:null,              // {x,y,w,h} natural — ctv logo
+    logoAspect:1,
+    progPct:35,
+    sel:null                // currently selected layer id
+  };
+
+  /* ---------- supabase ---------- */
+  var db = null;
+  try {
+    db = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON, {
+      auth:{ persistSession:false, autoRefreshToken:false }
+    });
+  } catch(e){ /* library failed; logos/calibration disabled */ }
+
+  /* ---------- elements ---------- */
+  var stage=$('stage'), frameImg=$('frameImg'), screenClip=$('screenClip'),
+      screenImg=$('screenImg'), creative=$('creative'), creativeImg=creative.querySelector('img'),
+      progBar=$('progBar'), ctvLogo=$('ctvLogo'), ctvLogoImg=ctvLogo.querySelector('img'),
+      emptyMsg=$('emptyMsg');
+
+  /* ---------- toast ---------- */
+  var toastEl=$('toast'), toastT;
+  function toast(msg, ok){
+    toastEl.textContent=msg; toastEl.className='show'+(ok===false?' err':'');
+    clearTimeout(toastT); toastT=setTimeout(function(){ toastEl.className=''; }, ok===false?4200:2200);
+  }
+
+  /* ---------- device dropdown ---------- */
+  function fillDevices(){
+    var sel=$('device'); sel.innerHTML='';
+    var list = state.mode==='ctv' ? ['ctv'] : ONLINE_DEVICES;
+    list.forEach(function(id){
+      var o=document.createElement('option'); o.value=id; o.textContent=FRAMES[id].label; sel.appendChild(o);
+    });
+    state.device = list[0];
+    sel.value = state.device;
+  }
+  $('device').addEventListener('change', function(){ setDevice(this.value); });
+
+  function setDevice(id){
+    state.device=id;
+    var F=FRAMES[id];
+    // load calibration: localStorage cache -> default
+    var cached = readCalib(id);
+    state.screen = cached ? {x:cached.x,y:cached.y,w:cached.w,h:cached.h} : {x:F.rect.x,y:F.rect.y,w:F.rect.w,h:F.rect.h};
+    state.radius = cached && cached.radius!=null ? cached.radius : F.radius;
+    $('radius').value = state.radius;
+    frameImg.src = F.img;
+    frameImg.onload = function(){ layout(); render(); };
+    // reset screen content on device change (keep creative)
+    screenImg.style.display='none'; screenImg.removeAttribute('src');
+    if(state.mode==='ctv'){ /* still shown via screenImg */ }
+    layout(); render();
+  }
+
+  /* ---------- mode switch ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('#modeSeg button'), function(b){
+    b.addEventListener('click', function(){
+      state.mode=b.dataset.mode;
+      Array.prototype.forEach.call(document.querySelectorAll('#modeSeg button'), function(x){ x.classList.toggle('on', x===b); });
+      var online = state.mode==='online';
+      $('pageCard').style.display   = online?'':'none';
+      $('creativeCard').style.display = online?'':'none';
+      $('ctvCard').style.display    = online?'none':'';
+      $('logoCard').style.display   = online?'none':'';
+      fillDevices();
+      setDevice(state.device);
+      if(state.mode==='ctv' && db) loadLogos();
+    });
+  });
+
+  /* ---------- layout / scale ---------- */
+  function layout(){
+    var F=FRAMES[state.device];
+    var wrap=$('stagewrap');
+    var pad=24;
+    var maxW=wrap.clientWidth - pad, maxH=wrap.clientHeight - pad;
+    if(maxW<50||maxH<50){ state.sc=0.5; return; }
+    state.sc = Math.min(maxW/F.natW, maxH/F.natH);
+    stage.style.width=(F.natW*state.sc)+'px';
+    stage.style.height=(F.natH*state.sc)+'px';
+  }
+  window.addEventListener('resize', function(){ layout(); render(); });
+
+  /* ---------- render ---------- */
+  function place(el, r){
+    var s=state.sc;
+    el.style.left=(r.x*s)+'px'; el.style.top=(r.y*s)+'px';
+    el.style.width=(r.w*s)+'px'; el.style.height=(r.h*s)+'px';
+  }
+  // OLV progress-bar geometry (natural px), pinned to the bottom of the creative
+  function progRect(){
+    if(state.mode!=='online' || !state.cre || !$('showProgress').checked) return null;
+    var c=state.cre;
+    var padX=c.w*0.05, bw=c.w-padX*2;
+    var bh=Math.max(2, Math.min(c.h*0.05, c.w*0.018));
+    return { x:c.x+padX, y:c.y+c.h-bh-c.h*0.06, w:bw, h:bh };
+  }
+  function render(){
+    var hasContent = screenImg.getAttribute('src') || (state.mode==='online' && state.cre);
+    emptyMsg.style.display = hasContent ? 'none' : 'flex';
+    stage.style.display = 'block';
+    var s=state.sc;
+    place(screenClip, state.screen);
+    screenClip.style.borderRadius=(state.radius*s)+'px';
+    screenClip.classList.toggle('calib', $('calib').checked);
+
+    // creative (online)
+    if(state.mode==='online' && state.cre){
+      creative.style.display='block'; place(creative, state.cre);
+    } else creative.style.display='none';
+
+    // OLV progress bar — pinned to the video creative (online mode only)
+    var pr = progRect();
+    if(pr){
+      progBar.style.display='block';
+      progBar.style.left=(pr.x*s)+'px'; progBar.style.top=(pr.y*s)+'px';
+      progBar.style.width=(pr.w*s)+'px'; progBar.style.height=(pr.h*s)+'px';
+      progBar.querySelector('.fill').style.width=state.progPct+'%';
+      var knob=progBar.querySelector('.knob'), kd=(pr.h*s)*2.4;
+      knob.style.width=kd+'px'; knob.style.height=kd+'px'; knob.style.left=state.progPct+'%';
+    } else progBar.style.display='none';
+
+    // CTV logo
+    if(state.mode==='ctv' && state.logo && ctvLogoImg.getAttribute('src')){ ctvLogo.style.display='block'; place(ctvLogo, state.logo); }
+    else ctvLogo.style.display='none';
+
+    // selection outline
+    [creative, ctvLogo].forEach(function(el){ el.classList.toggle('sel', state.sel===el.id); });
+  }
+
+  /* ---------- interaction (drag + resize) ---------- */
+  function makeInteractive(el, key, opts){
+    opts=opts||{};
+    ['nw','ne','sw','se'].forEach(function(d){
+      var h=document.createElement('div'); h.className='rh rh-'+d; h.dataset.dir=d; el.appendChild(h);
+    });
+    el.addEventListener('pointerdown', function(e){
+      if(opts.disabled && opts.disabled()) return;
+      state.sel = el.id; render();
+      var dir=(e.target.dataset && e.target.dataset.dir)||'';
+      e.preventDefault(); e.stopPropagation();
+      var sx=e.clientX, sy=e.clientY, r=Object.assign({}, state[key]), sc=state.sc;
+      var aspect = r.w/r.h;
+      function move(ev){
+        var dx=(ev.clientX-sx)/sc, dy=(ev.clientY-sy)/sc, n=Object.assign({}, r);
+        var keep = opts.aspect && opts.aspect();
+        if(!dir){ n.x=r.x+dx; n.y=r.y+dy; }
+        else {
+          if(dir.indexOf('e')>=0) n.w=Math.max(opts.min||14, r.w+dx);
+          if(dir.indexOf('w')>=0){ n.w=Math.max(opts.min||14, r.w-dx); n.x=r.x+(r.w-n.w); }
+          if(keep){ n.h=n.w/aspect; if(dir.indexOf('n')>=0) n.y=r.y+(r.h-n.h); }
+          else {
+            if(dir.indexOf('s')>=0) n.h=Math.max(opts.min||14, r.h+dy);
+            if(dir.indexOf('n')>=0){ n.h=Math.max(opts.min||14, r.h-dy); n.y=r.y+(r.h-n.h); }
+          }
+        }
+        state[key]=n; render();
+      }
+      function up(){ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    });
+  }
+  makeInteractive(screenClip,'screen',{ disabled:function(){ return !$('calib').checked; }, min:20 });
+  makeInteractive(creative,'cre',{ aspect:function(){ return $('lockAspect').checked; }, min:16 });
+  makeInteractive(ctvLogo,'logo',{ aspect:function(){ return true; }, min:16 });
+
+  // deselect on stage bg
+  stage.addEventListener('pointerdown', function(e){ if(e.target===stage||e.target===frameImg){ state.sel=null; render(); } });
+
+  // keyboard nudge / delete
+  document.addEventListener('keydown', function(e){
+    if(!state.sel) return;
+    if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    var key = state.sel==='creative'?'cre':(state.sel==='ctvLogo'?'logo':null);
+    if(!key||!state[key]) return;
+    var step = e.shiftKey?10:1;
+    if(e.key==='ArrowLeft'){ state[key].x-=step; }
+    else if(e.key==='ArrowRight'){ state[key].x+=step; }
+    else if(e.key==='ArrowUp'){ state[key].y-=step; }
+    else if(e.key==='ArrowDown'){ state[key].y+=step; }
+    else if(e.key==='Delete'||e.key==='Backspace'){
+      if(key==='cre'){ state.cre=null; creativeImg.removeAttribute('src'); }
+      else { state.logo=null; ctvLogoImg.removeAttribute('src'); selectedLogo=null; renderLogoSel(); }
+      state.sel=null;
+    } else return;
+    e.preventDefault(); render();
+  });
+
+  $('calib').addEventListener('change', render);
+  $('radius').addEventListener('input', function(){ state.radius=+this.value; render(); });
+  $('showProgress').addEventListener('change', function(){ $('progRow').style.display=this.checked?'':'none'; render(); });
+  $('progressPct').addEventListener('input', function(){ state.progPct=+this.value; render(); });
+
+  /* ---------- creative upload ---------- */
+  function loadCreativeFromFile(file){
+    if(!file || !/^image\//.test(file.type)){ toast('Please choose an image', false); return; }
+    var rd=new FileReader();
+    rd.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        state.creAspect = img.naturalWidth/img.naturalHeight;
+        creativeImg.src=img.src;
+        // default placement: ~34% of screen width, centered-ish upper area
+        var sr=state.screen, w=sr.w*0.34, h=w/state.creAspect;
+        state.cre={ x:sr.x+sr.w*0.5-w/2, y:sr.y+sr.h*0.18, w:w, h:h };
+        state.sel='creative'; applyPreset(); render();
+      };
+      img.src=rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+  function wireDrop(dropEl, cb){
+    dropEl.addEventListener('click', function(){
+      var i=document.createElement('input'); i.type='file'; i.accept='image/*';
+      i.onchange=function(){ if(i.files[0]) cb(i.files[0]); }; i.click();
+    });
+    ['dragover','dragenter'].forEach(function(ev){ dropEl.addEventListener(ev,function(e){ e.preventDefault(); dropEl.classList.add('over'); }); });
+    ['dragleave','drop'].forEach(function(ev){ dropEl.addEventListener(ev,function(e){ e.preventDefault(); dropEl.classList.remove('over'); }); });
+    dropEl.addEventListener('drop', function(e){ var f=e.dataTransfer.files[0]; if(f) cb(f); });
+  }
+  wireDrop($('creativeDrop'), loadCreativeFromFile);
+
+  function applyPreset(){
+    var v=$('crePreset').value; if(!v||!state.cre) return;
+    var ar;
+    if(v.indexOf('x')>0){ var p=v.split('x'); ar=(+p[0])/(+p[1]); }
+    else if(v==='16x9'){ ar=16/9; }
+    if(!ar) return;
+    state.creAspect=ar;
+    state.cre.h = state.cre.w/ar;
+  }
+  $('crePreset').addEventListener('change', function(){ applyPreset(); render(); });
+
+  /* ---------- page capture ---------- */
+  $('pastePage').addEventListener('click', function(){
+    var i=document.createElement('input'); i.type='file'; i.accept='image/*';
+    i.onchange=function(){ if(i.files[0]) loadPageFromFile(i.files[0]); }; i.click();
+  });
+  function loadPageFromFile(file){
+    var rd=new FileReader();
+    rd.onload=function(){ screenImg.src=rd.result; screenImg.style.display='block'; render(); };
+    rd.readAsDataURL(file);
+  }
+  $('capture').addEventListener('click', function(){
+    var url=$('url').value.trim();
+    if(!/^https?:\/\//i.test(url)){ toast('Enter a full URL (https://…)', false); return; }
+    var btn=this, old=btn.innerHTML;
+    btn.disabled=true; btn.innerHTML='<span class="spin"></span> Capturing…';
+    fetch(CFG.SCREENSHOT_FN, {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-mockup-key':CFG.PROXY_TOKEN,
+        'apikey':CFG.SUPABASE_ANON,
+        'authorization':'Bearer '+CFG.SUPABASE_ANON
+      },
+      body: JSON.stringify({ url:url, device:state.device, fullPage:$('fullPage').checked, blockCookies:$('blockCookies').checked, blockAds:$('blockAds').checked })
+    }).then(function(r){
+      var ct=r.headers.get('content-type')||'';
+      if(r.ok && ct.indexOf('image')>=0) return r.blob().then(function(b){
+        var u=URL.createObjectURL(b); screenImg.src=u; screenImg.style.display='block'; render(); toast('Page captured');
+      });
+      return r.json().then(function(j){
+        if(r.status===503) toast('Screenshot key not set yet — add SCREENSHOTONE_ACCESS_KEY in Supabase. Use Upload… for now.', false);
+        else toast('Capture failed: '+(j.error||r.status)+(j.detail?(' — '+j.detail):''), false);
+      }).catch(function(){ toast('Capture failed ('+r.status+')', false); });
+    }).catch(function(e){ toast('Network error: '+e, false); })
+      .finally(function(){ btn.disabled=false; btn.innerHTML=old; });
+  });
+
+  /* ---------- CTV still ---------- */
+  wireDrop($('ctvDrop'), function(file){
+    var rd=new FileReader();
+    rd.onload=function(){ screenImg.src=rd.result; screenImg.style.display='block'; render(); };
+    rd.readAsDataURL(file);
+  });
+
+  /* ---------- logo library ---------- */
+  var logoRows=[], selectedLogo=null;
+  function renderLogoSel(){
+    Array.prototype.forEach.call(document.querySelectorAll('.logo'), function(el){
+      el.classList.toggle('sel', selectedLogo && el.dataset.id===selectedLogo.id);
+    });
+  }
+  function loadLogos(){
+    if(!db){ $('logoStatus').textContent='Library unavailable (offline).'; return; }
+    $('logoStatus').textContent='Loading library…';
+    db.from('mockup_logos').select('*').order('created_at',{ascending:true}).then(function(res){
+      if(res.error){ $('logoStatus').textContent='Could not load library.'; return; }
+      logoRows=res.data||[];
+      var grid=$('logoGrid'); grid.innerHTML='';
+      logoRows.forEach(function(row){
+        var pub=db.storage.from('mockup-logos').getPublicUrl(row.storage_path).data.publicUrl;
+        var d=document.createElement('div'); d.className='logo'; d.dataset.id=row.id; d.title=row.name;
+        d.innerHTML='<img src="'+pub+'" alt=""><button class="del" title="Delete">×</button>';
+        d.querySelector('img').addEventListener('click', function(){ selectLogo(row); });
+        d.querySelector('.del').addEventListener('click', function(ev){ ev.stopPropagation(); deleteLogo(row); });
+        grid.appendChild(d);
+      });
+      $('logoStatus').textContent = logoRows.length? (logoRows.length+' logo'+(logoRows.length>1?'s':'')+' · click to place') : 'No logos yet — upload one.';
+      renderLogoSel();
+    });
+  }
+  function selectLogo(row){
+    if(!db) return;
+    selectedLogo=row; renderLogoSel();
+    db.storage.from('mockup-logos').download(row.storage_path).then(function(res){
+      if(res.error){ toast('Could not load logo', false); return; }
+      var u=URL.createObjectURL(res.data);
+      var img=new Image();
+      img.onload=function(){
+        state.logoAspect=img.naturalWidth/img.naturalHeight;
+        ctvLogoImg.src=u;
+        var sr=state.screen, w=sr.w*0.16, h=w/state.logoAspect;
+        state.logo={ x:sr.x+sr.w*0.05, y:sr.y+sr.h*0.06, w:w, h:h };
+        state.sel='ctvLogo'; render();
+      };
+      img.src=u;
+    });
+  }
+  $('clearLogo').addEventListener('click', function(){ selectedLogo=null; state.logo=null; ctvLogoImg.removeAttribute('src'); renderLogoSel(); render(); });
+  $('addLogo').addEventListener('click', function(){
+    if(!db){ toast('Library unavailable', false); return; }
+    var i=document.createElement('input'); i.type='file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
+    i.onchange=function(){ if(i.files[0]) uploadLogo(i.files[0]); }; i.click();
+  });
+  function uploadLogo(file){
+    var name=(file.name||'logo').replace(/\.[^.]+$/,'');
+    var nm=prompt('Publisher name for this logo:', name); if(nm===null) return;
+    var ext=(file.name.match(/\.[^.]+$/)||['.png'])[0];
+    var path=Date.now()+'-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)+ext;
+    $('logoStatus').textContent='Uploading…';
+    db.storage.from('mockup-logos').upload(path, file, {contentType:file.type, upsert:false}).then(function(res){
+      if(res.error){ toast('Upload failed: '+res.error.message, false); return; }
+      return db.from('mockup_logos').insert({ name:nm.trim()||name, storage_path:path });
+    }).then(function(r){ if(r&&r.error){ toast('Saved file but not indexed', false); } toast('Logo saved'); loadLogos(); });
+  }
+  function deleteLogo(row){
+    if(!confirm('Delete "'+row.name+'" from the shared library?')) return;
+    db.storage.from('mockup-logos').remove([row.storage_path]).then(function(){
+      return db.from('mockup_logos').delete().eq('id', row.id);
+    }).then(function(){ if(selectedLogo&&selectedLogo.id===row.id){ selectedLogo=null; state.logo=null; ctvLogoImg.removeAttribute('src'); } toast('Deleted'); loadLogos(); render(); });
+  }
+
+  /* ---------- calibration persistence ---------- */
+  function calibKey(id){ return 'axm_mockup_frame_'+id; }
+  function readCalib(id){ try{ return JSON.parse(localStorage.getItem(calibKey(id))||'null'); }catch(e){ return null; } }
+  function writeCalib(id, obj){ try{ localStorage.setItem(calibKey(id), JSON.stringify(obj)); }catch(e){} }
+  function loadFrameOverrides(){
+    if(!db) return;
+    db.from('mockup_frames').select('*').then(function(res){
+      if(res.error||!res.data) return;
+      res.data.forEach(function(row){
+        var r=row.rect||{}; writeCalib(row.device_id, r);
+        if(row.device_id===state.device){ state.screen={x:r.x,y:r.y,w:r.w,h:r.h}; if(r.radius!=null){state.radius=r.radius;$('radius').value=r.radius;} render(); }
+      });
+    });
+  }
+  $('saveFrame').addEventListener('click', function(){
+    var obj={ x:Math.round(state.screen.x), y:Math.round(state.screen.y), w:Math.round(state.screen.w), h:Math.round(state.screen.h), radius:state.radius };
+    writeCalib(state.device, obj);
+    if(db){
+      db.from('mockup_frames').upsert({ device_id:state.device, rect:obj, updated_at:new Date().toISOString() }).then(function(r){
+        toast(r.error?'Saved locally (sync failed)':'Screen area saved for the team', r.error?false:true);
+      });
+    } else toast('Saved locally');
+  });
+  $('resetFrame').addEventListener('click', function(){
+    var F=FRAMES[state.device];
+    state.screen={x:F.rect.x,y:F.rect.y,w:F.rect.w,h:F.rect.h}; state.radius=F.radius; $('radius').value=F.radius;
+    try{ localStorage.removeItem(calibKey(state.device)); }catch(e){}
+    render(); toast('Reset to default (this device, locally)');
+  });
+
+  /* ---------- export ---------- */
+  function drawCover(ctx,img,dx,dy,dw,dh,ax,ay){
+    ax=ax==null?0.5:ax; ay=ay==null?0:ay;
+    var s=Math.max(dw/img.naturalWidth, dh/img.naturalHeight);
+    var w=img.naturalWidth*s, h=img.naturalHeight*s;
+    ctx.drawImage(img, dx+(dw-w)*ax, dy+(dh-h)*ay, w, h);
+  }
+  function roundPath(ctx,x,y,w,h,r){
+    r=Math.min(r,w/2,h/2);
+    if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); return; }
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+  function buildCanvas(cb){
+    var F=FRAMES[state.device];
+    var cv=document.createElement('canvas'); cv.width=F.natW; cv.height=F.natH;
+    var ctx=cv.getContext('2d');
+    // 1. frame
+    ctx.drawImage(frameImg,0,0,F.natW,F.natH);
+    // 2. screen content (clipped rounded)
+    var sr=state.screen;
+    if(screenImg.getAttribute('src') && screenImg.complete && screenImg.naturalWidth){
+      ctx.save(); roundPath(ctx, sr.x, sr.y, sr.w, sr.h, state.radius); ctx.clip();
+      drawCover(ctx, screenImg, sr.x, sr.y, sr.w, sr.h, 0.5, 0);
+      ctx.restore();
+    }
+    // 3. overlays
+    if(state.mode==='online' && state.cre && creativeImg.complete && creativeImg.naturalWidth){
+      var c=state.cre; ctx.drawImage(creativeImg, c.x, c.y, c.w, c.h);
+    }
+    // OLV progress bar on the video creative (online mode)
+    var pr = progRect();
+    if(pr){
+      ctx.fillStyle='rgba(255,255,255,0.32)'; roundPath(ctx,pr.x,pr.y,pr.w,pr.h,pr.h/2); ctx.fill();
+      var fw=pr.w*state.progPct/100;
+      ctx.fillStyle='#fff'; roundPath(ctx,pr.x,pr.y,Math.max(pr.h,fw),pr.h,pr.h/2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pr.x+fw, pr.y+pr.h/2, pr.h*1.2, 0, Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+    }
+    if(state.mode==='ctv' && state.logo && ctvLogoImg.complete && ctvLogoImg.naturalWidth){
+      var L=state.logo; ctx.drawImage(ctvLogoImg, L.x, L.y, L.w, L.h);
+    }
+    cb(cv);
+  }
+  function ts(){ var d=new Date(); function p(n){return(n<10?'0':'')+n;} return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes()); }
+  $('download').addEventListener('click', function(){
+    buildCanvas(function(cv){
+      cv.toBlob(function(b){
+        var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mock-'+state.device+'-'+ts()+'.png'; a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      },'image/png');
+    });
+  });
+  $('copy').addEventListener('click', function(){
+    buildCanvas(function(cv){
+      cv.toBlob(function(b){
+        if(!navigator.clipboard || !window.ClipboardItem){ toast('Clipboard unsupported — use Download', false); return; }
+        navigator.clipboard.write([new ClipboardItem({'image/png':b})]).then(
+          function(){ toast('Copied — paste into your deck'); },
+          function(){ toast('Clipboard blocked — use Download', false); }
+        );
+      },'image/png');
+    });
+  });
+
+  /* ---------- boot ---------- */
+  fillDevices();
+  setDevice('laptop');
+  if(db){ loadFrameOverrides(); }
+})();
+</script>
+</body>
+</html>

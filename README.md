@@ -16,8 +16,15 @@ AXM-toolkit/
     ├── io-autofiller/    ← fills media Insertion Orders from Monday; creates Pipedrive deals (PDF.js, jsPDF)
     ├── primary-tracker/  ← 2026 primary calendar w/ urgency alerts + Slack reminders (Supabase-backed)
     ├── ax-billing/       ← campaign billing & rebate ledger, spreadsheet-style (Supabase-backed)
-    └── l2-audience/      ← queues L2 voter-audience builds run by a local worker (Supabase-backed)
+    ├── l2-audience/      ← queues L2 voter-audience builds run by a local worker (Supabase-backed)
+    └── mockup/           ← device + ad mockups for decks; webpage capture via ScreenshotOne
+                            proxy edge function, shared logo library (Supabase-backed)
 ```
+
+The Mockup Studio's webpage capture calls a Supabase Edge Function (`supabase/functions/screenshot/`)
+that proxies [ScreenshotOne](https://screenshotone.com). The ScreenshotOne key is **not** in this
+repo — it lives as an Edge Function secret named `SCREENSHOTONE_ACCESS_KEY`
+(Supabase dashboard → Project Settings → Edge Functions → Secrets).
 
 ## Adding a new tool
 
