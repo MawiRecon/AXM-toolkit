@@ -103,6 +103,16 @@
   .io-render-shield .card{padding:20px 28px;background:var(--panel);border-radius:12px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,0.5);display:inline-flex;align-items:center}
 
   .channels{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  label.toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);font-weight:500;cursor:pointer}
+  label.toggle input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+  input[readonly]{opacity:.75;cursor:default}
+  table.alloc{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.alloc th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600;color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.07em}
+  table.alloc td{padding:4px 8px 4px 0;vertical-align:middle;color:var(--ink)}
+  table.alloc td:first-child{padding-left:8px}
+  table.alloc td input{padding:6px 9px}
+  table.alloc tfoot th{border-bottom:0;border-top:1px solid var(--line);color:var(--ink);text-transform:none;font-size:12.5px;letter-spacing:0}
+  .hint.warn{color:#E0B687}
   .hint{font-size:12px;color:var(--faint);margin-top:3px;line-height:1.5}
 
   .status{font-size:12.5px;padding:10px 12px;border-radius:8px;margin-top:12px;border:1px solid transparent}
@@ -236,9 +246,10 @@
   <div class="row"><label>Flight end</label><input id="f_end" type="date"></div>
   <div class="row"><label>Flight notes</label><textarea id="f_flightnotes"></textarea></div>
 
-  <div class="row"><label>Gross budget ($)</label><input id="f_budget" type="number" step="0.01" placeholder="7490"></div>
-  <div class="row"><label>Blended CPM ($)</label><input id="f_cpm" type="number" step="0.01" placeholder="49"><span class="hint" style="grid-column:2"><span style="color:var(--accent);font-weight:600">Ax standard bCPM is $49</span> (pre-filled &mdash; edit if needed)<br>Single blended CPM across all channels. Click <b>Suggest CPM</b> to compute from the selected channel mix.</span></div>
-  <div class="actions" style="margin-top:4px"><button id="suggestcpm" class="sec">Suggest CPM</button></div>
+  <div class="row"><label>Pricing</label><label class="toggle"><input id="f_perchannel" type="checkbox"> Per-channel CPMs &amp; budgets</label><span class="hint" style="grid-column:2">Off: one blended CPM and one shared budget. On: each channel gets its own CPM, budget and impressions row on the IO; the gross budget becomes the sum of the channel budgets.</span></div>
+  <div class="row"><label>Gross budget ($)</label><input id="f_budget" type="number" step="0.01" placeholder="7490"><span id="budget_hint" class="hint" style="grid-column:2;display:none"></span></div>
+  <div class="row" id="cpm_row"><label>Blended CPM ($)</label><input id="f_cpm" type="number" step="0.01" placeholder="49"><span class="hint" style="grid-column:2"><span style="color:var(--accent);font-weight:600">Ax standard bCPM is $49</span> (pre-filled &mdash; edit if needed)<br>Single blended CPM across all channels. Click <b>Suggest CPM</b> to compute from the selected channel mix.</span></div>
+  <div class="actions" id="suggestcpm_row" style="margin-top:4px"><button id="suggestcpm" class="sec">Suggest CPM</button></div>
 
   <div class="row full"><label>Channels (up to 7)</label></div>
   <div class="channels" id="channels">
@@ -251,6 +262,15 @@
     <select data-ch="7"></select>
   </div>
   <div class="hint">Default-mapped from form media channels. Override any row as needed.</div>
+
+  <div id="alloc_wrap" style="display:none;margin-top:12px">
+    <table class="alloc">
+      <thead><tr><th>Channel</th><th>CPM ($)</th><th>Budget ($)</th><th>Min Imps</th></tr></thead>
+      <tbody id="alloc_body"></tbody>
+      <tfoot><tr><th>Total</th><th id="alloc_cpm_f" class="num">&mdash;</th><th id="alloc_bud_f" class="num">&mdash;</th><th id="alloc_imp_f" class="num">&mdash;</th></tr></tfoot>
+    </table>
+    <div class="hint">CPMs pre-fill from the channel's default rate. Total CPM is the effective blended eCPM (total budget &divide; total impressions).</div>
+  </div>
 
   <div class="divider"></div>
 
@@ -327,7 +347,7 @@
   </div>
   <div class="divider"></div>
   <table class="preview">
-    <thead><tr><th>Channel</th><th>Blended CPM</th><th>Min Imps</th><th>Budget</th></tr></thead>
+    <thead><tr><th>Channel</th><th id="p_cpm_h">Blended CPM</th><th>Min Imps</th><th>Budget</th></tr></thead>
     <tbody id="p_channels"></tbody>
     <tfoot><tr><th>Totals</th><th id="p_cpm_f" class="num">&mdash;</th><th id="p_imp_f" class="num">&mdash;</th><th id="p_bud_f" class="num">&mdash;</th></tr></tfoot>
   </table>
@@ -684,7 +704,7 @@ function buildContractColumnValues(values, defaults){
   if(values.landing)        cols[c.landingPage]  = values.landing;
   if(values.geo)            cols[c.geo]          = { text: values.geo };
   if(values.mediaNotes)     cols[c.mediaNotes]   = { text: values.mediaNotes };
-  if(values.cpm != null)    cols[c.usBlendedCpm] = String(values.cpm);
+  if(values.cpm != null)    cols[c.usBlendedCpm] = String(cents(values.cpm));   // per-channel eCPM is computed, so round it
   if(values.budget != null) cols[c.usBudget]     = String(values.budget);
 
   // Flight: timeline (Planned Campaign Flight) + explicit start/end dates
@@ -781,6 +801,8 @@ function buildIoSnapshot(){
     advertiser:  v.advertiser, agency: v.agency, campaign: v.campaign,
     channels:    v.channels,
     budget:      v.budget, cpm: v.cpm,
+    perChannel:  v.perChannel,
+    channelLines: v.perChannel ? v.channelLines.map(l => ({ channel: l.channel, cpm: l.cpm, budget: l.budget })) : undefined,
     titleDate:   v.titleDate, startDate: v.startDate, endDate: v.endDate,
     flightNotes: v.flightNotes,
     landing:     v.landing, geo: v.geo, tactics: v.tactics,
@@ -805,8 +827,13 @@ function applyIoSnapshot(f){
   set('f_advertiser', f.advertiser); set('f_agency', f.agency); set('f_campaign', f.campaign);
   set('f_titledate', f.titleDate);   set('f_start', f.startDate); set('f_end', f.endDate);
   set('f_flightnotes', f.flightNotes);
+  // Pricing mode travels with the snapshot; older/OCR snapshots have no flag and are blended.
+  $("f_perchannel").checked = !!f.perChannel;
+  applyPricingMode();
+  grossTarget = null;
   set('f_budget', f.budget);         set('f_cpm', f.cpm);
-  if(Array.isArray(f.channels) && f.channels.length){ setChannelList(f.channels); n++; }
+  if(f.perChannel && Array.isArray(f.channelLines) && f.channelLines.length){ setChannelLines(f.channelLines); n++; }
+  else if(Array.isArray(f.channels) && f.channels.length){ setChannelList(f.channels); n++; }
   set('f_landing', f.landing);       set('f_geo', f.geo); set('f_tactics', f.tactics);
   set('f_environment', f.environment); set('f_goal', f.goal); set('f_kpi', f.kpi);
   set('f_secondary', f.secondary);   set('f_medianotes', f.mediaNotes);
@@ -875,6 +902,136 @@ function setChannelList(labels){
   const selects = Array.from(document.querySelectorAll('select[data-ch]'));
   selects.forEach(s => s.value = "(none)");
   labels.slice(0,7).forEach((lbl,i) => { if(selects[i]) selects[i].value = lbl; });
+}
+
+/* ==== Per-channel pricing (optional mode) ====
+   Off (default): one blended CPM + one shared budget, as the IO has always worked.
+   On: each channel slot carries its own CPM + budget; impressions are derived per row.
+   The IO's gross budget = sum of channel budgets and its blended eCPM = total budget ÷
+   total impressions, so Billing (io_amount) and Monday (US Budget / US Blended CPM)
+   still receive a single grand total. State is kept per select slot (0-6) so the same
+   channel can appear twice (e.g. two Display lines) with different pricing. */
+const SLOT_ALLOC = Array.from({length:7}, () => ({ chan:'', cpm:'', budget:'' }));
+let grossTarget = null;      // gross budget from the submission/form when allocation started
+let allocRenderedSig = null; // channel set the allocation table was last built for
+let budgetMirror = null;     // last sum written into f_budget, to tell it apart from external writes
+
+function isPerChannel(){ return !!($("f_perchannel") && $("f_perchannel").checked); }
+function defaultRate(label){ const r = CHANNELS.find(x => x.label === label)?.rate; return r != null ? String(r) : ''; }
+
+/* Align slot state with the channel selects. A slot whose channel changed gets the new
+   channel's default rate, unless the user had typed a custom CPM for it. */
+function syncSlotChannels(){
+  document.querySelectorAll('select[data-ch]').forEach((sel, i) => {
+    const s = SLOT_ALLOC[i]; if(!s) return;
+    const lbl = sel.value === '(none)' ? '' : sel.value;
+    if(s.chan === lbl) return;
+    if(!lbl){ s.cpm = ''; s.budget = ''; }
+    else if(!s.cpm || s.cpm === defaultRate(s.chan)) s.cpm = defaultRate(lbl);
+    s.chan = lbl;
+  });
+}
+function getChannelLines(){
+  syncSlotChannels();
+  const n = x => { const v = parseFloat(x); return isNaN(v) ? null : v; };
+  return SLOT_ALLOC.filter(s => s.chan).map(s => {
+    const cpm = n(s.cpm), budget = n(s.budget);
+    return { channel: s.chan, cpm, budget, imps: (cpm && budget) ? (budget / cpm) * 1000 : null };
+  });
+}
+function setChannelLines(lines){
+  lines = (lines || []).slice(0, 7);
+  setChannelList(lines.map(l => l.channel));
+  SLOT_ALLOC.forEach((s, i) => {
+    const l = lines[i] || {};
+    s.chan   = l.channel || '';
+    s.cpm    = l.cpm    != null ? String(l.cpm)    : '';
+    s.budget = l.budget != null ? String(l.budget) : '';
+  });
+  allocRenderedSig = null;
+}
+function lineTotals(lines){
+  const budget = lines.reduce((a, l) => a + (l.budget || 0), 0);
+  const imps   = lines.reduce((a, l) => a + (l.imps   || 0), 0);
+  return { budget: budget || null, imps: imps || null, cpm: (budget && imps) ? (budget / imps) * 1000 : null };
+}
+/* Round to cents without float noise (e.g. 2500.1 + 1000.2). */
+function cents(n){ return n == null ? null : Math.round(n * 100) / 100; }
+
+/* Show/hide the blended vs per-channel controls. */
+function applyPricingMode(){
+  const on = isPerChannel();
+  $("cpm_row").style.display = on ? 'none' : '';
+  $("suggestcpm_row").style.display = on ? 'none' : '';
+  $("alloc_wrap").style.display = on ? '' : 'none';
+  $("f_budget").readOnly = on;
+  $("f_budget").title = on ? 'Sum of the channel budgets below' : '';
+  if(!on) $("budget_hint").style.display = 'none';
+  allocRenderedSig = null;
+  budgetMirror = null;
+}
+
+/* Build the allocation rows (only when the channel set changes, so typing keeps focus). */
+function renderAllocTable(){
+  const body = $("alloc_body");
+  const rows = SLOT_ALLOC.map((s, i) => ({ s, i })).filter(r => r.s.chan);
+  body.innerHTML = rows.length ? rows.map(({ s, i }) => `
+    <tr>
+      <td>${esc(s.chan)}</td>
+      <td><input type="number" step="0.01" min="0" data-slot="${i}" data-k="cpm" value="${esc(s.cpm)}" placeholder="${esc(defaultRate(s.chan))}"></td>
+      <td><input type="number" step="0.01" min="0" data-slot="${i}" data-k="budget" value="${esc(s.budget)}" placeholder="0.00"></td>
+      <td class="num" data-imps="${i}">&mdash;</td>
+    </tr>`).join('')
+    : `<tr><td colspan="4" class="small">Pick channels above.</td></tr>`;
+  body.querySelectorAll('input[data-slot]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      SLOT_ALLOC[+inp.dataset.slot][inp.dataset.k] = inp.value;
+      renderPreview();
+    });
+  });
+  allocRenderedSig = SLOT_ALLOC.map(s => s.chan).join('|');
+}
+
+/* Per-channel mode: keep the (read-only) gross budget = sum of lines, refresh derived cells,
+   and flag anything that would make the IO wrong. Called from renderPreview(). */
+function syncAllocation(){
+  syncSlotChannels();
+  if(SLOT_ALLOC.map(s => s.chan).join('|') !== allocRenderedSig) renderAllocTable();
+  const lines = getChannelLines();
+  const t = lineTotals(lines);
+
+  // Anything that wrote f_budget directly (Monday fetch, history, submission parse) is the
+  // submission's gross — remember it as the allocation target, then mirror the sum back.
+  const bEl = $("f_budget");
+  const sumStr = t.budget != null ? cents(t.budget).toFixed(2) : '';
+  if(bEl.value !== budgetMirror){
+    const typed = parseFloat(bEl.value);
+    if(!isNaN(typed) && typed > 0) grossTarget = typed;
+  }
+  bEl.value = budgetMirror = sumStr;
+
+  SLOT_ALLOC.forEach((s, i) => {
+    const cell = document.querySelector(`[data-imps="${i}"]`); if(!cell) return;
+    const cpm = parseFloat(s.cpm), bud = parseFloat(s.budget);
+    cell.textContent = (cpm > 0 && bud > 0) ? fmtInt((bud / cpm) * 1000) : '—';
+  });
+  $("alloc_cpm_f").textContent = t.cpm ? fmtMoney(t.cpm) : '—';
+  $("alloc_bud_f").textContent = fmtMoney(t.budget);
+  $("alloc_imp_f").textContent = fmtInt(t.imps);
+
+  const warns = [];
+  const noCpm = lines.filter(l => l.budget && !l.cpm).map(l => l.channel);
+  if(noCpm.length) warns.push(`Add a CPM for ${noCpm.join(', ')} &mdash; its budget has no impressions.`);
+  if(grossTarget != null){
+    const diff = cents(grossTarget - (t.budget || 0));
+    if(Math.abs(diff) >= 0.01){
+      warns.push(`Submission gross was ${fmtMoney(grossTarget)} &mdash; ${diff > 0 ? fmtMoney(diff) + ' unallocated' : fmtMoney(-diff) + ' over'}.`);
+    }
+  }
+  const h = $("budget_hint");
+  h.style.display = warns.length ? '' : 'none';
+  h.className = 'hint warn';
+  h.innerHTML = warns.join('<br>');
 }
 
 /* ==== Submission parser ====
@@ -1025,7 +1182,7 @@ let reqSig = null;
 function ioSignature(){
   const v = collectIoValues();
   return JSON.stringify([v.advertiser,v.agency,v.campaign,v.titleDate,v.startDate,v.endDate,
-    v.budget,v.cpm,v.channels,v.landing,v.geo,v.tactics,v.environment,v.kpi,v.secondary,v.mediaNotes]);
+    v.budget,v.cpm,v.channels,v.perChannel,v.channelLines,v.landing,v.geo,v.tactics,v.environment,v.kpi,v.secondary,v.mediaNotes]);
 }
 function updateReqUi(){
   const n = reqDone.size, total = REQ_IDS.length;
@@ -1066,6 +1223,7 @@ function applyInitialDefaults(){
 }
 
 function renderPreview(){
+  if(isPerChannel()) syncAllocation();   // before the signature check: it rewrites f_budget
   maybeResetReqOnEdit();
   const adv = $("f_advertiser").value.trim();
   const ag  = $("f_agency").value.trim();
@@ -1093,8 +1251,20 @@ function renderPreview(){
   const cpm = parseFloat($("f_cpm").value);
   const bud = parseFloat($("f_budget").value);
   const tbody = $("p_channels"); tbody.innerHTML = "";
+  $("p_cpm_h").textContent = isPerChannel() ? "CPM" : "Blended CPM";
   if(!chans.length){
     tbody.innerHTML = `<tr><td colspan="4" class="small">No channels selected.</td></tr>`;
+  } else if(isPerChannel()){
+    const lines = getChannelLines(), t = lineTotals(lines);
+    lines.forEach(l => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(l.channel)}</td><td class="num">${fmtMoney(l.cpm)}</td><td class="num">${fmtInt(l.imps)}</td><td class="num">${fmtMoney(l.budget)}</td>`;
+      tbody.appendChild(tr);
+    });
+    $("p_cpm_f").textContent = t.cpm ? fmtMoney(t.cpm) + " eCPM" : "—";
+    $("p_imp_f").textContent = fmtInt(t.imps);
+    $("p_bud_f").textContent = fmtMoney(t.budget);
+    return;
   } else {
     // Single blended line: first channel shows CPM+imps+budget, remaining channels just show row labels
     chans.forEach((c,i) => {
@@ -1152,9 +1322,18 @@ function collectIoValues(){
   const agency     = trimmed('f_agency');
   const campaign   = trimmed('f_campaign');
   const channels   = getChannelList();
-  const budget     = num('f_budget');
-  const cpm        = num('f_cpm');
-  const minImps    = (budget && cpm) ? (budget / cpm) * 1000 : null;
+  const perChannel = isPerChannel();
+  const channelLines = perChannel ? getChannelLines() : [];
+  let budget, cpm, minImps;
+  if(perChannel){
+    // Grand totals roll up from the lines, so Billing / Monday still see one budget + one eCPM.
+    const t = lineTotals(channelLines);
+    budget = cents(t.budget); cpm = t.cpm; minImps = t.imps;
+  } else {
+    budget  = num('f_budget');
+    cpm     = num('f_cpm');
+    minImps = (budget && cpm) ? (budget / cpm) * 1000 : null;
+  }
   const titleDate  = isoDate('f_titledate');
   const startDate  = isoDate('f_start');
   const endDate    = isoDate('f_end');
@@ -1166,6 +1345,7 @@ function collectIoValues(){
   return {
     advertiser, agency, campaign, channels,
     budget, cpm, minImps,
+    perChannel, channelLines,
     titleDate, startDate, endDate, monYear, ioTitle,
     flightNotes: v('f_flightnotes'),
     landing:     v('f_landing'),
@@ -1200,6 +1380,24 @@ function buildIoHtml(v){
   const cpm = v.cpm, bud = v.budget, minImps = v.minImps;
   const ioName = v.ioTitle;
   const addr = profile().ioAddress; // [line1, line2, line3]
+
+  // CPM / Min Imps / Budget cells for channel row i. Blended mode: one merged cell spanning
+  // all 7 rows (emitted on row 0 only). Per-channel mode: each channel row gets its own values.
+  const pc = !!v.perChannel;
+  const lines = pc ? (v.channelLines || []).slice(0, 7) : [];
+  const priceCells = i => {
+    if(pc){
+      const l = lines[i];
+      if(!l) return '<td></td><td></td><td></td>';
+      return `<td class="big-ctr">${l.cpm != null ? fmtMoney2(l.cpm) : ''}</td>`
+           + `<td class="big-ctr">${l.imps != null ? fmtInt0(l.imps) : ''}</td>`
+           + `<td class="big-ctr">${l.budget != null ? fmtMoney2(l.budget) : ''}</td>`;
+    }
+    if(i !== 0) return '';
+    return `<td class="big-ctr" rowspan="7" style="vertical-align:middle">${cpm ? fmtMoney2(cpm) : ''}</td>`
+         + `<td class="big-ctr" rowspan="7" style="vertical-align:middle">${minImps!=null?fmtInt0(minImps):''}</td>`
+         + `<td class="big-ctr" rowspan="7" style="vertical-align:middle">${bud?fmtMoney2(bud):''}</td>`;
+  };
 
   // The split point: BILLING column starts at 68% (after Channels+CPM+Budget+ImpsCol+IOFlight cols).
   // Layout totals: Channels 10% + CPM 14% + Imps 14% + Budget 14% + Flight lbl 8% + Flight val 10% = 70%; Total 30%.
@@ -1251,7 +1449,7 @@ function buildIoHtml(v){
       </colgroup>
       <tr class="colhdrs">
         <td>Channels</td>
-        <td>Max Blended CPM Rate</td>
+        <td>${pc ? 'Max CPM Rate' : 'Max Blended CPM Rate'}</td>
         <td>Minimum Impressions</td>
         <td>Media Budget</td>
         <td colspan="2">IO Flight</td>
@@ -1259,38 +1457,42 @@ function buildIoHtml(v){
       </tr>
       <tr>
         <td>${esc(chanRows[0])}</td>
-        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${cpm ? fmtMoney2(cpm) : ''}</td>
-        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${minImps!=null?fmtInt0(minImps):''}</td>
-        <td class="big-ctr" rowspan="7" style="vertical-align:middle">${bud?fmtMoney2(bud):''}</td>
+        ${priceCells(0)}
         <td class="rlbl">Start</td><td>${fmtDate(v.startDate)}</td>
         <td class="rlbl">Min. Impressions:</td><td>${minImps!=null?fmtInt0(minImps):''}</td>
       </tr>
       <tr>
         <td>${esc(chanRows[1])}</td>
+        ${priceCells(1)}
         <td class="rlbl">End</td><td>${fmtDate(v.endDate)}</td>
         <td class="rlbl">Blended eCPM:</td><td>${cpm ? fmtMoney2(cpm) : ''}</td>
       </tr>
       <tr>
         <td>${esc(chanRows[2])}</td>
+        ${priceCells(2)}
         <td class="rlbl">Flight Notes:</td><td>${esc(v.flightNotes)}</td>
         <td class="rlbl">Billing Terms:</td><td>Net 30</td>
       </tr>
       <tr>
         <td>${esc(chanRows[3])}</td>
+        ${priceCells(3)}
         <td colspan="2" rowspan="3"></td>
         <td class="rlbl">Additional Costs:</td><td></td>
       </tr>
       <tr>
         <td>${esc(chanRows[4])}</td>
+        ${priceCells(4)}
         <td class="rlbl">Discount:</td><td></td>
       </tr>
       <tr>
         <td>${esc(chanRows[5])}</td>
+        ${priceCells(5)}
         <td class="rlbl bold dashed-top">Total Budget:</td>
         <td class="bold dashed-top">${bud?fmtMoney2(bud):''}</td>
       </tr>
       <tr>
         <td>${esc(chanRows[6])}</td>
+        ${priceCells(6)}
         <td colspan="2"></td>
         <td colspan="2"></td>
       </tr>
@@ -1405,6 +1607,19 @@ async function generatePdf(){
 
   // Snapshot form once. PDF render (and the Monday push) both consume the same snapshot.
   const values = collectIoValues();
+
+  // Per-channel IOs must be fully priced — a line without a CPM or budget would print
+  // blank cells and skew the blended eCPM / impression totals.
+  if(values.perChannel){
+    const bad = values.channelLines.filter(l => !(l.cpm > 0) || !(l.budget > 0)).map(l => l.channel);
+    if(!values.channelLines.length || bad.length){
+      status.className = "status err";
+      status.textContent = values.channelLines.length
+        ? `Per-channel pricing: enter a CPM and budget for ${bad.join(', ')} (or remove the channel).`
+        : 'Per-channel pricing: pick at least one channel.';
+      return;
+    }
+  }
 
   // Build filename
   const safe = s => (s || 'IO').replace(/[\\\/:*?"<>|]/g,'').trim();
@@ -1902,6 +2117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(el.type === 'date' || el.type === 'number' || el.type === 'text' || el.tagName === 'TEXTAREA') el.value = '';
     });
     setChannelList([]);
+    $("f_perchannel").checked = false; setChannelLines([]); grossTarget = null; applyPricingMode();
     applyInitialDefaults();   // reset to the standard fresh-IO defaults
     resetReq();               // clear the finalize checkmarks for a new IO
     PDF_FILE_CACHE = null;
@@ -1910,6 +2126,20 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPreview();
   };
   $("suggestcpm").onclick = suggestCPM;
+  $("f_perchannel").addEventListener('change', () => {
+    if(isPerChannel()){
+      // Turning on: the current gross becomes the allocation target. With a single channel
+      // there's nothing to split, so it takes the whole gross.
+      const gross = parseFloat($("f_budget").value);
+      syncSlotChannels();
+      const active = SLOT_ALLOC.filter(s => s.chan);
+      if(gross > 0 && active.length === 1 && !active[0].budget) active[0].budget = String(gross);
+    } else {
+      grossTarget = null;   // gross budget keeps the allocated total and becomes editable again
+    }
+    applyPricingMode();
+    renderPreview();
+  });
   $("download").onclick = generatePdf;
 
   /* ==== Send to Billing: hand the refined IO fields to the Billing Tracker ====
@@ -2051,7 +2281,9 @@ document.addEventListener('DOMContentLoaded', () => {
       advertiser:$("f_advertiser").value, agency:$("f_agency").value, campaign:$("f_campaign").value,
       titleDate:$("f_titledate").value, start:$("f_start").value, end:$("f_end").value,
       flightNotes:$("f_flightnotes").value, budget:$("f_budget").value, cpm:$("f_cpm").value,
-      channels:getChannelList(), landing:$("f_landing").value, geo:$("f_geo").value,
+      channels:getChannelList(),
+      ...(isPerChannel() ? { perChannel:true, channelLines:getChannelLines() } : {}),
+      landing:$("f_landing").value, geo:$("f_geo").value,
       tactics:$("f_tactics").value, environment:$("f_environment").value, goal:$("f_goal").value,
       kpi:$("f_kpi").value, secondary:$("f_secondary").value, mediaNotes:$("f_medianotes").value
     };
