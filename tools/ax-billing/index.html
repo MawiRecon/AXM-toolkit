@@ -1693,6 +1693,7 @@ const REQ_COLS = [
   {h:'Entity',             v:r=> r.entity||''},
   {h:'Advertiser',         v:r=> r.advertiser||''},
   {h:'Campaign',           v:r=> r.campaign_label || r.campaign_name || ''},
+  {h:'Channel Type',       v:r=> r.channels||''},
   {h:'Flight Start',       v:r=> r.campaign_start||''},
   {h:'Flight End',         v:r=> r.campaign_end||''},
   {h:'IO Amount',          v:r=> blankNum(r.io_amount)?'':(+r.io_amount).toFixed(2), cls:'num'},
