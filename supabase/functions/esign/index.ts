@@ -2,11 +2,13 @@
 // -----------------------------------------------------------------------------
 // Back end for the AXM E-Sign tool (tools/esign/) and its public signing page
 // (tools/esign/sign.html). A "PandaDoc lite": no cryptographic sealing, just a
-// stamped signature, a date, and a plain audit page appended to the PDF.
+// stamped signature, a date, and a plain audit page appended to the PDF. The
+// signature is drawn as a CAC/digital-ID style block ("LAST.FIRST" + "Digitally
+// signed by … / Date: …"), timestamped by this server in the signer's time zone.
 //
 // Flow
 //   1. create  — the toolkit uploads an IO PDF + the Grapeseed signer's email.
-//                We stamp that signer's saved signature + date on the Grapeseed
+//                We stamp that signer's digital signature + date on the Grapeseed
 //                line right away, store the draft, and return a signing token.
 //   2. view    — the client opens sign.html#t=<token>; we hand back a short-lived
 //                URL for the draft and where their signature goes.
@@ -69,16 +71,32 @@ const randToken = () => {
   return btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 const isBox = (b: any): b is Box => b && ["x", "y", "w", "h"].every((k) => Number.isFinite(b[k]));
-const cleanDate = (s: unknown) => {
-  const v = String(s ?? "").trim();
-  if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v)) fail(400, "Bad date");
-  return v;
-};
-const pngOnly = (s: unknown) => {
-  const v = String(s ?? "");
-  if (!v.startsWith("data:image/png;base64,") || v.length > 2_000_000) fail(400, "Signature must be a PNG");
-  return v;
-};
+// Standard PDF fonts are WinAnsi-only; anything else (emoji, CJK) would throw.
+const winAnsi = (t: string) => t.replace(/[^\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u2026]/g, "?");
+
+/* "Ben Mankowski" -> "MANKOWSKI.BEN", "Mason M Widmer" -> "WIDMER.MASON.M" — the
+   LAST.FIRST.MIDDLE shape of a CAC certificate name, without the DoD ID number.
+   Keep in sync with ident() in tools/esign/stamp.js (the on-screen preview). */
+function ident(name: string) {
+  const w = winAnsi(name).toUpperCase().replace(/[^A-Z\u00C0-\u00DE'\- ]/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (w.length < 2) return w[0] || "SIGNER";
+  return [w[w.length - 1], ...w.slice(0, -1)].join(".");
+}
+
+/* Signer-local time from the browser's getTimezoneOffset() (minutes BEHIND UTC). */
+function localStamp(offsetMin: unknown) {
+  let off = Number(offsetMin);
+  if (!Number.isFinite(off) || Math.abs(off) > 840) off = 0;
+  const t = new Date(Date.now() - off * 60_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const Y = t.getUTCFullYear(), M = p(t.getUTCMonth() + 1), D = p(t.getUTCDate());
+  const a = Math.abs(off);
+  return {
+    date: `${M}/${D}/${Y}`,                                            // the "Date Signed" line
+    day: `${Y}.${M}.${D}`,
+    time: `${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:${p(t.getUTCSeconds())} ${off > 0 ? "-" : "+"}${p(Math.floor(a / 60))}'${p(a % 60)}'`,
+  };
+}
 
 async function download(path: string): Promise<Uint8Array> {
   const { data, error } = await db.storage.from(BUCKET).download(path);
@@ -96,19 +114,45 @@ async function signedUrl(path: string, downloadName?: string) {
   return data!.signedUrl;
 }
 
-/* Draw a signature PNG into a box (fit, bottom-left aligned so it sits on the
-   line) and the date into its box. Boxes are PDF points with a TOP-LEFT origin
-   (what the browser placer works in); pdf-lib wants bottom-left. */
-async function stamp(pdf: PDFDocument, f: Fields, sig: Box, date: Box, png: string, dateText: string) {
+/* Draw the digital-ID signature block into its box and the date into its box.
+   Boxes are PDF points with a TOP-LEFT origin (what the browser placer works in);
+   pdf-lib wants bottom-left.
+
+     MANKOWSKI.     | Digitally signed by
+     BEN            | MANKOWSKI.BEN
+                    | Date: 2026.10.15
+                    | 08:27:36 -04'00'                                         */
+async function stamp(pdf: PDFDocument, f: Fields, sig: Box, date: Box, name: string, tzOffset: unknown) {
   const page = pdf.getPage(Math.min(Math.max(f.page | 0, 0), pdf.getPageCount() - 1));
   const H = page.getHeight();
-  const img = await pdf.embedPng(b64ToBytes(png));
-  const s = Math.min(sig.w / img.width, sig.h / img.height);
-  const w = img.width * s, h = img.height * s;
-  page.drawImage(img, { x: sig.x, y: H - sig.y - sig.h, width: w, height: h });
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const ink = rgb(0, 0, 0);
+  const id = ident(name);
+  const when = localStamp(tzOffset);
+  const top = H - sig.y;                               // pdf-lib y of the box's top edge
+  const fit = (lines: string[], width: number, maxSize: number) =>
+    Math.min(maxSize, ...lines.map((l) => width / Math.max(1, font.widthOfTextAtSize(l, 1))));
+
+  // Left: the identity, big — on one line if that stays legible, else split at a dot.
+  const leftW = sig.w * 0.47, gap = sig.w * 0.03;
+  let left = [id];
+  if (fit(left, leftW, sig.h) < sig.h * 0.42 && id.includes(".")) {
+    const i = id.indexOf(".");
+    left = [id.slice(0, i + 1), id.slice(i + 1)];
+  }
+  const ls = fit(left, leftW, (sig.h / left.length) * 0.82);
+  const lh = ls * 1.05, ly0 = top - (sig.h - lh * left.length) / 2 - ls * 0.85;
+  left.forEach((l, i) => page.drawText(l, { x: sig.x, y: ly0 - i * lh, size: ls, font, color: ink }));
+
+  // Right: the "Digitally signed by" detail, four small lines.
+  const right = ["Digitally signed by", id, `Date: ${when.day}`, when.time];
+  const rx = sig.x + leftW + gap;
+  const rs = fit(right, sig.w - leftW - gap, (sig.h / right.length) * 0.86);
+  const rh = sig.h / right.length;
+  right.forEach((l, i) => page.drawText(l, { x: rx, y: top - rh * (i + 1) + (rh - rs) / 2 + rs * 0.12, size: rs, font, color: ink }));
+
   const size = Math.min(10, date.h * 0.8);
-  page.drawText(dateText, { x: date.x + 2, y: H - date.y - date.h + 3, size, font, color: rgb(0, 0, 0) });
+  page.drawText(when.date, { x: date.x + 2, y: H - date.y - date.h + 3, size, font, color: ink });
 }
 
 async function auditPage(pdf: PDFDocument, row: any) {
@@ -119,8 +163,7 @@ async function auditPage(pdf: PDFDocument, row: any) {
   let y = page.getHeight() - 60;
   const maxW = page.getWidth() - 240;
   const line = (label: string, value: string) => {
-    // Standard fonts are WinAnsi-only; anything else (emoji, CJK) would throw.
-    let v = (value || "—").replace(/[^\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u2026]/g, "?");
+    let v = winAnsi(value || "—");
     // one line per field: trim to fit rather than wrap
     while (v.length > 1 && font.widthOfTextAtSize(v, 10) > maxW) v = v.slice(0, -2) + "…";
     page.drawText(label, { x: 50, y, size: 10, font: bold });
@@ -177,7 +220,7 @@ const LIST_COLS = "id,token,title,file_name,monday_item_id,gsm_email,gsm_name,cl
 const internal: Record<string, (b: any) => Promise<unknown>> = {
   async signer_get(b) {
     const email = String(b.email ?? "").trim().toLowerCase();
-    const { data } = await db.from("esign_signers").select("email,name,signature_png").eq("email", email).maybeSingle();
+    const { data } = await db.from("esign_signers").select("email,name").eq("email", email).maybeSingle();
     return { signer: data };
   },
   async signer_save(b) {
@@ -185,14 +228,14 @@ const internal: Record<string, (b: any) => Promise<unknown>> = {
     if (!/^[^@\s]+@grapeseedmedia\.com$/i.test(email)) fail(400, "Use an @grapeseedmedia.com email");
     const name = String(b.name ?? "").trim();
     if (!name) fail(400, "Name required");
-    const { error } = await db.from("esign_signers").upsert({ email, name, signature_png: pngOnly(b.signature_png), updated_at: new Date().toISOString() });
+    const { error } = await db.from("esign_signers").upsert({ email, name, updated_at: new Date().toISOString() });
     if (error) fail(500, error.message);
     return { ok: true };
   },
   async create(b) {
     const email = String(b.gsm_email ?? "").trim().toLowerCase();
     const { data: signer } = await db.from("esign_signers").select("*").eq("email", email).maybeSingle();
-    if (!signer) fail(400, "No saved signature for that Grapeseed email");
+    if (!signer) fail(400, "No signer profile for that Grapeseed email");
     const f = b.fields as Fields;
     if (!f || !isBox(f.gsmSig) || !isBox(f.gsmDate) || !isBox(f.clientSig) || !isBox(f.clientDate)) fail(400, "Signature fields missing");
     const bytes = b64ToBytes(String(b.pdf_b64 ?? ""));
@@ -201,7 +244,7 @@ const internal: Record<string, (b: any) => Promise<unknown>> = {
     if (item && !/^\d+$/.test(item)) fail(400, "Monday item id must be numeric");
 
     const pdf = await PDFDocument.load(bytes);
-    await stamp(pdf, f, f.gsmSig, f.gsmDate, signer.signature_png, cleanDate(b.local_date));
+    await stamp(pdf, f, f.gsmSig, f.gsmDate, signer.name, b.tz_offset);
     const out = await pdf.save();
 
     const id = crypto.randomUUID();
@@ -283,8 +326,6 @@ const pub: Record<string, (b: any, req: Request) => Promise<unknown>> = {
     if (b.consent !== true) fail(400, "Consent required");
     const name = String(b.name ?? "").trim().slice(0, 200);
     if (!name) fail(400, "Please enter your full name");
-    const png = pngOnly(b.signature_png);
-    const dateText = cleanDate(b.local_date);
 
     const now = new Date().toISOString();
     Object.assign(row, {
@@ -293,7 +334,7 @@ const pub: Record<string, (b: any, req: Request) => Promise<unknown>> = {
       signer_ua: (req.headers.get("user-agent") ?? "").slice(0, 400),
     });
     const pdf = await PDFDocument.load(await download(row.draft_path));
-    await stamp(pdf, row.fields, row.fields.clientSig, row.fields.clientDate, png, dateText);
+    await stamp(pdf, row.fields, row.fields.clientSig, row.fields.clientDate, name, b.tz_offset);
     await auditPage(pdf, row);
     const out = await pdf.save();
     const signed_path = `signed/${row.id}.pdf`;

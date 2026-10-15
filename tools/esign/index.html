@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>E-Sign</title>
 <link rel="stylesheet" href="../../theme.css?v=2">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap">
 <style>
   *{box-sizing:border-box}
   [hidden]{display:none!important}
@@ -42,8 +41,7 @@
   .filechip{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px}
   .filechip .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ok-pill{font-size:11px;color:var(--ok);background:var(--ok-tint);border-radius:999px;padding:1px 8px}
-  .sigfile{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:6px 10px;margin-bottom:8px;min-height:48px}
-  .sigfile img{max-height:40px;max-width:200px}
+  .sigfile{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:8px;min-height:48px;color:#111}
   .sigfile .who{margin-left:auto;color:#555;font-size:11.5px;text-align:right;min-width:0;overflow-wrap:anywhere}
   .msg{font-size:12px;border-radius:8px;padding:8px 10px;margin-top:10px;display:none}
   .msg.err{display:block;background:var(--err-tint);color:var(--err)}
@@ -51,16 +49,15 @@
   .linkbox{display:flex;gap:6px;margin-top:10px}
   .linkbox input{font-size:12px}
 
-  /* signature pad (dark host) */
-  .sigpad{margin-bottom:8px}
-  .sp-tabs{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px;margin-bottom:6px}
-  .sp-tabs button{flex:1;border:0;background:transparent;color:var(--muted);padding:5px 8px;border-radius:6px;font:inherit;font-size:12px;cursor:pointer}
-  .sp-tabs button.on{background:var(--accent);color:var(--accent-ink)}
-  .sp-body{position:relative;background:#fff;border-radius:8px;height:96px;overflow:hidden}
-  .sp-typed{position:absolute;left:8px;right:8px;bottom:6px;width:auto!important;background:#f3f3f1!important;color:#222!important;border-color:#ddd!important;font-size:12px!important;padding:4px 8px!important}
-  .sp-typed-preview{position:absolute;left:12px;right:12px;top:4px;height:52px;font-size:34px;line-height:52px;color:#111;white-space:nowrap;overflow:hidden}
-  .sp-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
-  .sp-clear{position:absolute;top:4px;right:6px;border:0;background:transparent;color:#888;font-size:11px;cursor:pointer}
+  /* digital-ID signature preview (see stamp.js); font-size sets the scale */
+  .sigstamp{display:flex;gap:.5em;align-items:center;font-family:Helvetica,Arial,sans-serif;color:#111;line-height:1.08;white-space:nowrap}
+  .sigstamp .ss-l{font-size:1.9em;line-height:1.02}
+  .sigstamp .ss-r{font-size:.82em}
+  .sigfile .sigstamp{font-size:9px}
+  .fbox .sigstamp{position:absolute;inset:0;pointer-events:none;opacity:.9}
+  .fbox.stamped .lbl{display:none}   /* the stamp itself says who; color says which side */
+  select{width:100%;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;outline:none}
+  select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
 
   /* stage */
   .main{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -116,14 +113,14 @@
       <h2>2 · Grapeseed signer</h2>
       <label class="fld"><span>Your email</span><input id="gsmEmail" type="email" placeholder="you@grapeseedmedia.com" autocomplete="email"></label>
       <div id="gsmOnFile" hidden>
-        <div class="sigfile"><img id="gsmSigImg" alt="Saved signature"><div class="who" id="gsmWho"></div></div>
-        <button class="btn sm" id="gsmChange" type="button">Change signature</button>
+        <div class="sigfile"><div id="gsmStamp"></div><div class="who" id="gsmWho"></div></div>
+        <button class="btn sm" id="gsmChange" type="button">Change name</button>
       </div>
       <div id="gsmSetup" hidden>
-        <p class="hint" style="margin:0 0 8px">No signature on file for this email yet. Save one once; it's applied automatically from now on.</p>
+        <p class="hint" style="margin:0 0 8px">First time with this email: enter your name once. Your digital signature is generated from it and applied automatically from now on.</p>
         <label class="fld"><span>Full name</span><input id="gsmName" type="text" autocomplete="name"></label>
-        <div id="gsmPad"></div>
-        <button class="btn sm primary" id="gsmSave" type="button">Save signature</button>
+        <div class="sigfile" id="gsmPreview" hidden></div>
+        <button class="btn sm primary" id="gsmSave" type="button">Save</button>
         <button class="btn sm" id="gsmCancel" type="button" hidden>Cancel</button>
       </div>
       <div id="gsmMsg" class="msg"></div>
@@ -131,9 +128,17 @@
 
     <div class="card">
       <h2>3 · Client &amp; Monday</h2>
-      <div class="row">
-        <label class="fld"><span>Client signer</span><input id="cliName" type="text" placeholder="optional"></label>
-        <label class="fld"><span>Client email</span><input id="cliEmail" type="email" placeholder="optional"></label>
+      <label class="fld"><span>Client signer</span>
+        <select id="cliPick">
+          <option value="">Choose who signs…</option>
+          <option value="0">Ben Mankowski · bmankowski@axmediateam.com</option>
+          <option value="1">Clayton Leighty · cleighty@axmediateam.com</option>
+          <option value="other">Someone else…</option>
+        </select>
+      </label>
+      <div class="row" id="cliOther" hidden>
+        <label class="fld"><span>Name</span><input id="cliName" type="text"></label>
+        <label class="fld"><span>Email</span><input id="cliEmail" type="email" placeholder="optional"></label>
       </div>
       <label class="fld"><span>Monday Contracts item ID</span><input id="mondayItem" type="text" inputmode="numeric" placeholder="e.g. 11798352671"></label>
       <p class="hint" style="margin:-4px 0 12px">When the client signs, the executed PDF goes to <b>Signed IO</b> and <b>IO Status</b> flips to <b>IO Fully Executed</b>. Leave blank to skip Monday.</p>
@@ -176,7 +181,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="./config.js"></script>
-<script src="./sigpad.js"></script>
+<script src="./stamp.js"></script>
 <script src="./handoff.js"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -185,7 +190,6 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const toast = t => { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2200); };
 const msg = (id, kind, text) => { const el = $(id); el.className = 'msg' + (kind ? ' ' + kind : ''); el.textContent = text || ''; };
-const localDate = () => new Date().toLocaleDateString('en-US');
 
 async function api(action, body = {}){
   const r = await fetch(C.FN, { method:'POST', headers:{ 'content-type':'application/json', 'x-esign-key': C.TOOL_KEY }, body: JSON.stringify({ action, ...body }) });
@@ -253,16 +257,16 @@ async function detectFields(handed){
     const dg = near(gsm), dc = near(cli);
     return { src: 'Positions found from the signature labels', fields: {
       page: p - 1,
-      gsmSig: boxAfter(gsm, 180, 30), gsmDate: dg ? boxAfter(dg, 86, 16) : boxAfter(gsm, 86, 16),
-      clientSig: boxAfter(cli, 180, 30), clientDate: dc ? boxAfter(dc, 86, 16) : boxAfter(cli, 86, 16),
+      gsmSig: boxAfter(gsm, 180, 34), gsmDate: dg ? boxAfter(dg, 86, 16) : boxAfter(gsm, 86, 16),
+      clientSig: boxAfter(cli, 180, 34), clientDate: dc ? boxAfter(dc, 86, 16) : boxAfter(cli, 86, 16),
     }};
   }
   const page = await state.pdf.getPage(state.pdf.numPages);
   const W = page.view[2] - page.view[0], H = page.view[3] - page.view[1];
   return { src: 'Default positions: drag them onto the lines', fields: {
     page: state.pdf.numPages - 1,
-    gsmSig:     { x: W*.25, y: H-110, w: 180, h: 30 }, gsmDate:    { x: W*.62, y: H-96, w: 86, h: 16 },
-    clientSig:  { x: W*.25, y: H-66,  w: 180, h: 30 }, clientDate: { x: W*.62, y: H-52, w: 86, h: 16 },
+    gsmSig:     { x: W*.25, y: H-114, w: 180, h: 34 }, gsmDate:    { x: W*.62, y: H-96, w: 86, h: 16 },
+    clientSig:  { x: W*.25, y: H-70,  w: 180, h: 34 }, clientDate: { x: W*.62, y: H-52, w: 86, h: 16 },
   }};
 }
 
@@ -296,8 +300,12 @@ function drawBoxes(){
     const el = document.createElement('div');
     el.className = 'fbox ' + d.cls;
     el.innerHTML = `<span class="lbl">${d.label}</span><span class="rz"></span>`;
-    if(d.k === 'gsmSig' && state.signer){ const img = new Image(); img.src = state.signer.signature_png; el.prepend(img); }
-    const place = () => Object.assign(el.style, { left: f.x*s+'px', top: f.y*s+'px', width: f.w*s+'px', height: f.h*s+'px' });
+    const preview = d.k === 'gsmSig' ? (state.signer && state.signer.name) : d.k === 'clientSig' ? clientSigner().name : '';
+    if(preview){ el.insertAdjacentHTML('afterbegin', SigStamp.html(preview)); el.classList.add('stamped'); el.title = d.label; }
+    const place = () => {
+      Object.assign(el.style, { left: f.x*s+'px', top: f.y*s+'px', width: f.w*s+'px', height: f.h*s+'px' });
+      const st = el.querySelector('.sigstamp'); if(st) st.style.fontSize = (f.h * s / 4.3) + 'px';   // 4 detail lines fill the box
+    };
     place();
     el.addEventListener('pointerdown', e => {
       e.preventDefault(); el.setPointerCapture(e.pointerId);
@@ -320,7 +328,10 @@ function drawBoxes(){
 }
 
 /* ===================== Grapeseed signer ===================== */
-const pad = SigPad($('gsmPad'), { nameInput: $('gsmName') });
+$('gsmName').addEventListener('input', () => {
+  const n = $('gsmName').value.trim();
+  $('gsmPreview').hidden = !n; $('gsmPreview').innerHTML = n ? SigStamp.html(n) : '';
+});
 const EMAIL_KEY = 'axm_esign_gsm_email';
 try { $('gsmEmail').value = localStorage.getItem(EMAIL_KEY) || ''; } catch(e){}
 
@@ -339,7 +350,7 @@ async function lookupSigner(){
 }
 function showSigner(signer){
   state.signer = signer;
-  $('gsmSigImg').src = signer.signature_png;
+  $('gsmStamp').innerHTML = SigStamp.html(signer.name);
   $('gsmWho').innerHTML = `${esc(signer.name)}<br>${esc(signer.email)}`;
   $('gsmOnFile').hidden = false; $('gsmSetup').hidden = true;
   if(state.pdf) drawBoxes();
@@ -347,26 +358,42 @@ function showSigner(signer){
 }
 $('gsmEmail').addEventListener('change', lookupSigner);
 $('gsmChange').onclick = () => {
-  $('gsmName').value = state.signer ? state.signer.name : ''; pad.syncFromName();
+  $('gsmName').value = state.signer ? state.signer.name : ''; $('gsmName').dispatchEvent(new Event('input'));
   $('gsmOnFile').hidden = true; $('gsmSetup').hidden = false; $('gsmCancel').hidden = false;
 };
 $('gsmCancel').onclick = () => state.signer && showSigner(state.signer);
 $('gsmSave').onclick = async () => {
   const email = $('gsmEmail').value.trim().toLowerCase(), name = $('gsmName').value.trim();
   if(!name){ msg('gsmMsg', 'err', 'Enter your full name.'); return; }
-  const png = await pad.toPNG();
-  if(!png){ msg('gsmMsg', 'err', 'Add a signature first.'); return; }
   $('gsmSave').disabled = true;
   try {
-    await api('signer_save', { email, name, signature_png: png });
-    showSigner({ email, name, signature_png: png });
-    msg('gsmMsg', 'ok', 'Signature saved.');
+    await api('signer_save', { email, name });
+    showSigner({ email, name });
+    msg('gsmMsg', 'ok', 'Saved.');
   } catch(e){ msg('gsmMsg', 'err', e.message); }
   $('gsmSave').disabled = false;
 };
 
+/* ===================== client signer ===================== */
+const CLIENT_SIGNERS = [
+  { name: 'Ben Mankowski',   email: 'bmankowski@axmediateam.com' },
+  { name: 'Clayton Leighty', email: 'cleighty@axmediateam.com' },
+];
+function clientSigner(){
+  const v = $('cliPick').value;
+  if(v === 'other') return { name: $('cliName').value.trim(), email: $('cliEmail').value.trim() };
+  return CLIENT_SIGNERS[v] || { name: '', email: '' };
+}
+$('cliPick').addEventListener('change', () => {
+  $('cliOther').hidden = $('cliPick').value !== 'other';
+  if(!$('cliOther').hidden) $('cliName').focus();
+  if(state.pdf) drawBoxes();
+  updateCreate();
+});
+$('cliName').addEventListener('input', () => { updateCreate(); if(state.pdf) drawBoxes(); });
+
 /* ===================== create ===================== */
-function updateCreate(){ $('create').disabled = !(state.bytes && state.signer); }
+function updateCreate(){ $('create').disabled = !(state.bytes && state.signer && clientSigner().name); }
 
 function b64(bytes){
   let s = ''; const CH = 0x8000;
@@ -382,8 +409,8 @@ $('create').onclick = async () => {
   try {
     const { token } = await api('create', {
       pdf_b64: b64(state.bytes), file_name: state.fileName, title: state.title,
-      monday_item_id: item, gsm_email: state.signer.email, local_date: localDate(),
-      client_name: $('cliName').value.trim(), client_email: $('cliEmail').value.trim(),
+      monday_item_id: item, gsm_email: state.signer.email, tz_offset: SigStamp.tzOffset(),
+      client_name: clientSigner().name, client_email: clientSigner().email,
       fields: { ...state.fields, page: state.page },
     });
     $('linkOut').value = linkFor(token); $('linkBox').hidden = false;

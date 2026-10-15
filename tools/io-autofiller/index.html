@@ -1586,7 +1586,7 @@ const IO_RENDER_CSS = `
   .io-render .strategy td{padding:5px 8px}
   .io-render .legal{font-size:7.5pt;padding:8px 16px 0;line-height:1.4}
   .io-render .sigblock{padding:8px 16px 4px}
-  .io-render .sigrow{display:flex;align-items:flex-end;gap:10px;padding:18px 0 2px;font-size:10pt}
+  .io-render .sigrow{display:flex;align-items:flex-end;gap:10px;padding:34px 0 2px;font-size:10pt}  /* tall enough for an E-Sign digital-ID stamp */
   .io-render .sig-lbl{font-weight:bold;white-space:nowrap}
   .io-render .sigline{border-bottom:1px solid #000;flex:0 0 2.5in;height:1.1em}
   .io-render .sigline.short{flex:0 0 1.2in}
@@ -1705,7 +1705,7 @@ async function generatePdf(opts){
         return { x: pt(x + (r.left - t.left) / cssW * imgW), y: pt(bottom) - h, w: pt(r.width / cssW * imgW), h };
       };
       const ls = target.querySelectorAll('.sigline');
-      if(ls.length === 4) sigFields = { page: 0, gsmSig: box(ls[0], 26), gsmDate: box(ls[1], 13), clientSig: box(ls[2], 26), clientDate: box(ls[3], 13) };
+      if(ls.length === 4) sigFields = { page: 0, gsmSig: box(ls[0], 34), gsmDate: box(ls[1], 13), clientSig: box(ls[2], 34), clientDate: box(ls[3], 13) };
     } catch(e){ console.warn('signature line measure failed', e); }
 
     // Embed the field snapshot as JSON in the PDF Keywords metadata so this IO can later be
