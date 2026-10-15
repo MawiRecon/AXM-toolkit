@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Document</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap">
+<!-- Deliberately unbranded and standalone (no toolkit theme): the client sees the IO and nothing else. -->
+<style>
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0}
+  body{background:#e9e9e7;color:#222;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:16px 16px 90px}
+  #pages{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .pg{position:relative;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.18);max-width:100%}
+  .pg canvas{display:block;width:100%;height:auto}
+  .slot{position:absolute;border:2px solid #f2b705;background:rgba(255,214,0,.22);border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#5a4500;animation:pulse 1.6s ease-in-out infinite}
+  .slot.date{cursor:default;animation:none;font-weight:400;font-size:11px}
+  @keyframes pulse{50%{background:rgba(255,214,0,.42)}}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #d6d6d3;padding:12px 16px;display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap}
+  .bar .txt{color:#444}
+  .btn{border:0;border-radius:6px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;background:#1f1f1f;color:#fff;text-decoration:none;display:inline-block}
+  .btn.sec{background:#fff;color:#222;border:1px solid #c9c9c6}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .center{max-width:420px;margin:18vh auto;text-align:center;color:#555}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+  .scrim.on{display:flex}
+  .modal{background:#fff;border-radius:10px;width:100%;max-width:460px;padding:18px}
+  .modal h3{margin:0 0 12px;font-size:16px}
+  .modal label.f{display:block;font-size:12px;color:#555;margin-bottom:10px}
+  .modal input[type=text]{width:100%;margin-top:4px;padding:9px 10px;border:1px solid #c9c9c6;border-radius:6px;font:inherit}
+  .consent{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#444;margin:10px 0 14px}
+  .consent input{margin-top:2px}
+  .acts{display:flex;gap:8px;justify-content:flex-end}
+  .err{color:#b3261e;font-size:12.5px;min-height:18px;margin-bottom:6px}
+  /* signature pad (light host) */
+  .sp-tabs{display:flex;gap:4px;margin-bottom:6px}
+  .sp-tabs button{flex:1;border:1px solid #c9c9c6;background:#fff;border-radius:6px;padding:6px;font:inherit;font-size:12.5px;cursor:pointer;color:#444}
+  .sp-tabs button.on{background:#1f1f1f;color:#fff;border-color:#1f1f1f}
+  .sp-body{position:relative;border:1px solid #c9c9c6;border-radius:6px;height:120px;overflow:hidden;background:#fff}
+  .sp-typed{position:absolute;left:8px;right:8px;bottom:6px;width:auto;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font:inherit;font-size:12.5px;background:#f6f6f5}
+  .sp-typed-preview{position:absolute;left:12px;right:12px;top:6px;height:64px;font-size:40px;line-height:64px;white-space:nowrap;overflow:hidden;border-bottom:1px solid #e3e3e0}
+  .sp-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .sp-clear{position:absolute;top:4px;right:6px;border:0;background:transparent;color:#888;font-size:11px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="pages"><div class="center">Loading document…</div></div>
+
+<div class="bar" id="bar" hidden></div>
+
+<div class="scrim" id="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h3 id="mTitle">Sign</h3>
+    <label class="f">Full name<input id="name" type="text" autocomplete="name"></label>
+    <div id="pad"></div>
+    <label class="consent"><input id="consent" type="checkbox"> I agree to sign this document electronically and that my electronic signature is the legal equivalent of my handwritten signature.</label>
+    <div class="err" id="err"></div>
+    <div class="acts">
+      <button class="btn sec" id="cancel" type="button">Cancel</button>
+      <button class="btn" id="submit" type="button" disabled>Sign</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="./sigpad.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const FN = 'https://joojunnbkzebulolnliq.supabase.co/functions/v1/esign';
+const $ = id => document.getElementById(id);
+const token = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+let doc = null;
+
+async function call(action, body){
+  const r = await fetch(FN, { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ action, token, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
+  return j;
+}
+const fatal = t => { $('pages').innerHTML = `<div class="center">${t}</div>`; $('bar').hidden = true; };
+
+async function render(url, withSlots){
+  const pdf = await pdfjsLib.getDocument(url).promise;
+  const wrap = $('pages'); wrap.innerHTML = '';
+  const maxW = Math.min(1100, document.documentElement.clientWidth - 32);
+  for(let i = 0; i < pdf.numPages; i++){
+    const page = await pdf.getPage(i + 1);
+    const base = page.getViewport({ scale: 1 });
+    const css = maxW / base.width, dpr = window.devicePixelRatio || 1;
+    const vp = page.getViewport({ scale: css * dpr });
+    const box = document.createElement('div'); box.className = 'pg'; box.style.width = base.width * css + 'px';
+    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+    box.appendChild(cv); wrap.appendChild(box);
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    if(withSlots && i === doc.page){
+      // Slot geometry is stored in PDF points; express it in % so it tracks the canvas width.
+      const pct = (b, el) => Object.assign(el.style, { left: b.x / base.width * 100 + '%', top: b.y / base.height * 100 + '%', width: b.w / base.width * 100 + '%', height: b.h / base.height * 100 + '%' });
+      const s = document.createElement('div'); s.className = 'slot'; s.textContent = 'Sign here'; pct(doc.clientSig, s); s.onclick = openModal;
+      const d = document.createElement('div'); d.className = 'slot date'; d.textContent = 'Date'; pct(doc.clientDate, d);
+      box.append(s, d);
+      if(withSlots === 'scroll') setTimeout(() => s.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    }
+  }
+}
+
+function showSigned(url){
+  const bar = $('bar'); bar.hidden = false;
+  bar.innerHTML = `<span class="txt">This document has been signed.</span><a class="btn sec" href="${url}">Download a copy</a>`;
+}
+
+/* ---- signing modal ---- */
+const pad = SigPad($('pad'), { nameInput: $('name') });
+const check = () => { $('submit').disabled = !($('name').value.trim() && $('consent').checked && !pad.isEmpty()); };
+$('name').addEventListener('input', check); $('consent').addEventListener('change', check);
+$('pad').addEventListener('input', check); $('pad').addEventListener('pointerup', check); $('pad').addEventListener('click', () => setTimeout(check));
+function openModal(){ $('err').textContent = ''; $('scrim').classList.add('on'); if(doc.client_name && !$('name').value){ $('name').value = doc.client_name; pad.syncFromName(); } check(); $('name').focus(); }
+$('cancel').onclick = () => $('scrim').classList.remove('on');
+$('submit').onclick = async () => {
+  $('submit').disabled = true; $('err').textContent = ''; $('submit').textContent = 'Signing…';
+  try {
+    const png = await pad.toPNG();
+    const res = await call('sign', { name: $('name').value.trim(), signature_png: png, consent: true, local_date: new Date().toLocaleDateString('en-US') });
+    $('scrim').classList.remove('on');
+    await render(res.url, false);
+    showSigned(res.url);
+    window.scrollTo({ top: 0 });
+  } catch(e){ $('err').textContent = e.message; $('submit').disabled = false; }
+  $('submit').textContent = 'Sign';
+};
+
+/* ---- boot ---- */
+(async () => {
+  if(!token) return fatal('This signing link is not valid.');
+  try { doc = await call('view'); }
+  catch(e){ return fatal(e.message); }
+  if(doc.status === 'signed'){ await render(doc.url, false); return showSigned(doc.url); }
+  await render(doc.url, 'scroll');
+  const bar = $('bar'); bar.hidden = false;
+  bar.innerHTML = '<span class="txt">Review the document, then add your signature.</span>';
+  const b = document.createElement('button'); b.className = 'btn'; b.textContent = 'Sign'; b.onclick = openModal; bar.appendChild(b);
+})();
+</script>
+</body>
+</html>

@@ -17,9 +17,20 @@ AXM-toolkit/
     ├── primary-tracker/  ← 2026 primary calendar w/ urgency alerts + Slack reminders (Supabase-backed)
     ├── ax-billing/       ← campaign billing & rebate ledger, spreadsheet-style (Supabase-backed)
     ├── l2-audience/      ← queues L2 voter-audience builds run by a local worker (Supabase-backed)
-    └── mockup/           ← device + ad mockups for decks; webpage capture via ScreenshotOne
-                            proxy edge function, shared logo library (Supabase-backed)
+    ├── mockup/           ← device + ad mockups for decks; webpage capture via ScreenshotOne
+    │                       proxy edge function, shared logo library (Supabase-backed)
+    └── esign/            ← "PandaDoc lite": send an IO for client signature; sign.html is
+                            the public, unbranded signing page (edge function `esign`)
 ```
+
+The E-Sign tool stamps the Grapeseed signer's saved signature (keyed by their
+@grapeseedmedia.com email) when the link is created; the client signs via
+`tools/esign/sign.html#t=<token>`. Everything goes through the `esign` edge function
+(`supabase/functions/esign/`); its tables and the private `esign` bucket have no anon
+access (see `tools/esign/schema.sql`). On signing, the executed PDF is attached to the
+Monday Contracts item's **Signed IO** column and **IO Status** is set to **IO Fully
+Executed** — that needs an Edge Function secret named `MONDAY_API_TOKEN`; without it
+signing still works and the tool offers "Push to Monday" later.
 
 The Mockup Studio's webpage capture calls a Supabase Edge Function (`supabase/functions/screenshot/`)
 that proxies [ScreenshotOne](https://screenshotone.com). The ScreenshotOne key is **not** in this

@@ -79,6 +79,11 @@ alter publication supabase_realtime add table io_history;
 -- ---------------------------------------------------------------------
 alter table io_history add column if not exists notify_pending boolean not null default false;
 
+-- Full Monday item URL, stamped at Push-to-Monday time. Stored here (rather
+-- than having OpenClaw reconstruct it from a hardcoded board id) so the
+-- link stays correct even if new client profiles/boards are added later.
+alter table io_history add column if not exists monday_item_url text;
+
 -- ---------------------------------------------------------------------
 -- MIGRATION (2026-09-16): make the monday_item_id index non-partial so
 -- the Push-to-Monday upsert (on_conflict=monday_item_id) works.

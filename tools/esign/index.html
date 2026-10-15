@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Sign</title>
+<link rel="stylesheet" href="../../theme.css?v=2">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap">
+<style>
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:flex;gap:16px;height:100vh;padding:16px}
+  .side{width:344px;flex:none;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+  .card h2 .sub{color:var(--faint);font-weight:400;font-size:11.5px}
+  label.fld{display:block;margin-bottom:10px}
+  label.fld > span{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;letter-spacing:.02em;text-transform:uppercase}
+  input[type=text],input[type=email]{
+    width:100%;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font:inherit;outline:none
+  }
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+  .btn{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);padding:8px 12px;border-radius:8px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;justify-content:center;text-decoration:none}
+  .btn:hover{border-color:var(--border-strong)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .btn.primary:hover{background:var(--accent-hover)}
+  .btn.wide{width:100%}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .btn.sm{padding:4px 8px;font-size:11.5px}
+  .row{display:flex;gap:8px}
+  .row > *{flex:1}
+  .drop{border:1.5px dashed var(--border-strong);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:12.5px;cursor:pointer;transition:.12s}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--ink);background:var(--accent-tint)}
+  .hint{font-size:11.5px;color:var(--faint);line-height:1.45}
+  .filechip{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px}
+  .filechip .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ok-pill{font-size:11px;color:var(--ok);background:var(--ok-tint);border-radius:999px;padding:1px 8px}
+  .sigfile{display:flex;align-items:center;gap:10px;background:#fff;border-radius:8px;padding:6px 10px;margin-bottom:8px;min-height:48px}
+  .sigfile img{max-height:40px;max-width:200px}
+  .sigfile .who{margin-left:auto;color:#555;font-size:11.5px;text-align:right;min-width:0;overflow-wrap:anywhere}
+  .msg{font-size:12px;border-radius:8px;padding:8px 10px;margin-top:10px;display:none}
+  .msg.err{display:block;background:var(--err-tint);color:var(--err)}
+  .msg.ok{display:block;background:var(--ok-tint);color:var(--ok)}
+  .linkbox{display:flex;gap:6px;margin-top:10px}
+  .linkbox input{font-size:12px}
+
+  /* signature pad (dark host) */
+  .sigpad{margin-bottom:8px}
+  .sp-tabs{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px;margin-bottom:6px}
+  .sp-tabs button{flex:1;border:0;background:transparent;color:var(--muted);padding:5px 8px;border-radius:6px;font:inherit;font-size:12px;cursor:pointer}
+  .sp-tabs button.on{background:var(--accent);color:var(--accent-ink)}
+  .sp-body{position:relative;background:#fff;border-radius:8px;height:96px;overflow:hidden}
+  .sp-typed{position:absolute;left:8px;right:8px;bottom:6px;width:auto!important;background:#f3f3f1!important;color:#222!important;border-color:#ddd!important;font-size:12px!important;padding:4px 8px!important}
+  .sp-typed-preview{position:absolute;left:12px;right:12px;top:4px;height:52px;font-size:34px;line-height:52px;color:#111;white-space:nowrap;overflow:hidden}
+  .sp-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .sp-clear{position:absolute;top:4px;right:6px;border:0;background:transparent;color:#888;font-size:11px;cursor:pointer}
+
+  /* stage */
+  .main{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .tabs{display:flex;gap:4px}
+  .tabs button{border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:7px 14px;border-radius:8px;font:inherit;font-size:12.5px;cursor:pointer}
+  .tabs button.on{color:var(--ink);border-color:var(--accent)}
+  .stagewrap{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto;position:relative;padding:18px;display:flex;justify-content:center;align-items:flex-start}
+  .stagewrap .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px;text-align:center;padding:24px}
+  #page{position:relative;box-shadow:0 2px 18px rgba(0,0,0,.4);background:#fff}
+  #page canvas{display:block}
+  .fbox{position:absolute;border:2px dashed;border-radius:4px;cursor:move;user-select:none;touch-action:none}
+  .fbox .lbl{position:absolute;left:0;top:0;font-size:9px;font-weight:600;padding:0 4px;border-radius:0 0 3px 0;white-space:nowrap;color:#fff;line-height:13px;opacity:.9}
+  .fbox.gsm{border-color:#C96442;background:rgba(201,100,66,.10)} .fbox.gsm .lbl{background:#C96442}
+  .fbox.cli{border-color:#3d7bd9;background:rgba(61,123,217,.10)} .fbox.cli .lbl{background:#3d7bd9}
+  .fbox .rz{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid currentColor;cursor:nwse-resize}
+  .fbox.gsm .rz{color:#C96442} .fbox.cli .rz{color:#3d7bd9}
+  .fbox img{position:absolute;left:0;bottom:0;max-width:100%;max-height:100%;opacity:.85;pointer-events:none}
+  .pager{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);white-space:nowrap}
+  .pager .hint{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .pager .src{margin-left:auto;color:var(--faint)}
+
+  /* requests */
+  #listView{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:10px 12px;border-bottom:1px solid var(--line)}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  td .t{font-weight:500}
+  td .s{color:var(--faint);font-size:11.5px}
+  .pill{display:inline-block;font-size:11px;border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .pill.sent{background:var(--neutral-bg);color:var(--muted)}
+  .pill.viewed{background:var(--warn-tint);color:var(--warn)}
+  .pill.signed,.pill.done{background:var(--ok-tint);color:var(--ok)}
+  .pill.void,.pill.skipped{background:var(--neutral-bg);color:var(--faint)}
+  .pill.error{background:var(--err-tint);color:var(--err)}
+  .pill.pending{background:var(--warn-tint);color:var(--warn)}
+  .acts{display:flex;gap:5px;flex-wrap:wrap}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:8px;font-size:12.5px;opacity:0;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="side">
+    <div class="card">
+      <h2>1 · Document <span class="sub">IO PDF</span></h2>
+      <div id="drop" class="drop">Drop a PDF here or click to choose</div>
+      <input id="file" type="file" accept="application/pdf" hidden>
+      <div id="chip" class="filechip" hidden><span class="nm" id="chipName"></span><span id="chipSrc" class="ok-pill"></span></div>
+      <p class="hint" style="margin:8px 0 0">Tip: in the IO Autofiller, <b>Send for signature</b> drops the IO here with the signature boxes already placed.</p>
+    </div>
+
+    <div class="card">
+      <h2>2 · Grapeseed signer</h2>
+      <label class="fld"><span>Your email</span><input id="gsmEmail" type="email" placeholder="you@grapeseedmedia.com" autocomplete="email"></label>
+      <div id="gsmOnFile" hidden>
+        <div class="sigfile"><img id="gsmSigImg" alt="Saved signature"><div class="who" id="gsmWho"></div></div>
+        <button class="btn sm" id="gsmChange" type="button">Change signature</button>
+      </div>
+      <div id="gsmSetup" hidden>
+        <p class="hint" style="margin:0 0 8px">No signature on file for this email yet. Save one once; it's applied automatically from now on.</p>
+        <label class="fld"><span>Full name</span><input id="gsmName" type="text" autocomplete="name"></label>
+        <div id="gsmPad"></div>
+        <button class="btn sm primary" id="gsmSave" type="button">Save signature</button>
+        <button class="btn sm" id="gsmCancel" type="button" hidden>Cancel</button>
+      </div>
+      <div id="gsmMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>3 · Client &amp; Monday</h2>
+      <div class="row">
+        <label class="fld"><span>Client signer</span><input id="cliName" type="text" placeholder="optional"></label>
+        <label class="fld"><span>Client email</span><input id="cliEmail" type="email" placeholder="optional"></label>
+      </div>
+      <label class="fld"><span>Monday Contracts item ID</span><input id="mondayItem" type="text" inputmode="numeric" placeholder="e.g. 11798352671"></label>
+      <p class="hint" style="margin:-4px 0 12px">When the client signs, the executed PDF goes to <b>Signed IO</b> and <b>IO Status</b> flips to <b>IO Fully Executed</b>. Leave blank to skip Monday.</p>
+      <button class="btn primary wide" id="create" type="button" disabled>Create signing link</button>
+      <div id="createMsg" class="msg"></div>
+      <div id="linkBox" class="linkbox" hidden>
+        <input id="linkOut" type="text" readonly>
+        <button class="btn" id="copyLink" type="button">Copy</button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <div class="tabs">
+      <button class="on" data-v="place">Place signatures</button>
+      <button data-v="list">Sent <span id="sentCount"></span></button>
+    </div>
+    <div id="placeView" class="main" style="gap:8px">
+      <div class="pager" id="pager" hidden>
+        <button class="btn sm" id="prevPg" type="button">‹</button>
+        <span id="pgLbl"></span>
+        <button class="btn sm" id="nextPg" type="button">›</button>
+        <span class="hint">Drag boxes to the signature lines; drag the corner dot to resize.</span>
+        <span class="src" id="fieldSrc"></span>
+      </div>
+      <div class="stagewrap" id="stagewrap">
+        <div class="empty" id="empty">Load an IO to place the signatures.</div>
+        <div id="page" hidden><canvas id="cv"></canvas></div>
+      </div>
+    </div>
+    <div id="listView" hidden>
+      <table>
+        <thead><tr><th>Document</th><th>Client</th><th>Status</th><th>Monday</th><th>Created</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="s">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="./config.js"></script>
+<script src="./sigpad.js"></script>
+<script src="./handoff.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const C = window.AX_ESIGN_CONFIG;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast = t => { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2200); };
+const msg = (id, kind, text) => { const el = $(id); el.className = 'msg' + (kind ? ' ' + kind : ''); el.textContent = text || ''; };
+const localDate = () => new Date().toLocaleDateString('en-US');
+
+async function api(action, body = {}){
+  const r = await fetch(C.FN, { method:'POST', headers:{ 'content-type':'application/json', 'x-esign-key': C.TOOL_KEY }, body: JSON.stringify({ action, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+/* ===================== document + field placement ===================== */
+// Field boxes are PDF points, TOP-LEFT origin, on one page (state.page).
+const FIELD_DEFS = [
+  { k:'gsmSig',     label:'Grapeseed',   cls:'gsm' },
+  { k:'gsmDate',    label:'GS date',     cls:'gsm' },
+  { k:'clientSig',  label:'Client',      cls:'cli' },
+  { k:'clientDate', label:'Client date', cls:'cli' },
+];
+const state = { bytes:null, fileName:'', title:'', pdf:null, page:0, scale:1, pageW:0, pageH:0, fields:null, signer:null };
+
+$('drop').onclick = () => $('file').click();
+$('file').onchange = e => { const f = e.target.files[0]; if(f) loadFile(f); e.target.value = ''; };
+['dragenter','dragover'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+
+async function loadFile(file, extra = {}){
+  if(!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name || '')){ toast('That is not a PDF'); return; }
+  state.bytes = new Uint8Array(await file.arrayBuffer());
+  state.fileName = extra.fileName || file.name || 'IO.pdf';
+  state.title = extra.title || state.fileName.replace(/\.pdf$/i, '').replace(/_/g, ' ');
+  $('chip').hidden = false; $('chipName').textContent = state.fileName;
+  $('chipSrc').textContent = extra.fromIo ? 'from IO Autofiller' : 'uploaded';
+  if(extra.mondayItemId) $('mondayItem').value = extra.mondayItemId;
+  $('linkBox').hidden = true; msg('createMsg');
+
+  state.pdf = await pdfjsLib.getDocument({ data: state.bytes.slice() }).promise;
+  const { fields, src } = await detectFields(extra.fields);
+  state.fields = fields; state.page = fields.page;
+  $('fieldSrc').textContent = src;
+  await renderPage();
+  updateCreate();
+}
+
+/* Where do the signatures go?
+   1. The IO Autofiller embeds exact positions (AXSIG1 in the Keywords metadata).
+   2. Otherwise look for the IO's own labels in the PDF text layer.
+   3. Otherwise drop sensible defaults near the bottom of the last page. */
+async function detectFields(handed){
+  if(handed && handed.gsmSig) return { fields: handed, src: 'Positions from IO Autofiller' };
+  try {
+    const kw = ((await state.pdf.getMetadata()).info || {}).Keywords || '';
+    const m = kw.match(/AXSIG1:(\{[^\n]*?\})(?=\s*(?:AXIO1:|$))/);
+    if(m){ const f = JSON.parse(m[1]); if(f.gsmSig) return { fields: f, src: 'Positions from IO Autofiller' }; }
+  } catch(e){ console.warn('metadata read failed', e); }
+
+  for(let p = state.pdf.numPages; p >= 1; p--){
+    const page = await state.pdf.getPage(p);
+    const H = page.view[3] - page.view[1];
+    const items = (await page.getTextContent()).items.filter(i => i.str.trim());
+    const find = re => items.filter(i => re.test(i.str));
+    const gsm = find(/grapeseed.*signature/i)[0], cli = find(/client.*signature/i)[0];
+    if(!gsm || !cli) continue;
+    const dates = find(/date\s*signed/i);
+    const boxAfter = (it, w, h) => ({ x: it.transform[4] + it.width + 6, y: H - it.transform[5] - h + 4, w, h });
+    const near = it => dates.sort((a, b) => Math.abs(a.transform[5] - it.transform[5]) - Math.abs(b.transform[5] - it.transform[5]))[0];
+    const dg = near(gsm), dc = near(cli);
+    return { src: 'Positions found from the signature labels', fields: {
+      page: p - 1,
+      gsmSig: boxAfter(gsm, 180, 30), gsmDate: dg ? boxAfter(dg, 86, 16) : boxAfter(gsm, 86, 16),
+      clientSig: boxAfter(cli, 180, 30), clientDate: dc ? boxAfter(dc, 86, 16) : boxAfter(cli, 86, 16),
+    }};
+  }
+  const page = await state.pdf.getPage(state.pdf.numPages);
+  const W = page.view[2] - page.view[0], H = page.view[3] - page.view[1];
+  return { src: 'Default positions: drag them onto the lines', fields: {
+    page: state.pdf.numPages - 1,
+    gsmSig:     { x: W*.25, y: H-110, w: 180, h: 30 }, gsmDate:    { x: W*.62, y: H-96, w: 86, h: 16 },
+    clientSig:  { x: W*.25, y: H-66,  w: 180, h: 30 }, clientDate: { x: W*.62, y: H-52, w: 86, h: 16 },
+  }};
+}
+
+async function renderPage(){
+  const page = await state.pdf.getPage(state.page + 1);
+  const base = page.getViewport({ scale: 1 });
+  state.pageW = base.width; state.pageH = base.height;
+  const avail = $('stagewrap').clientWidth - 40;
+  state.scale = Math.min(1.6, Math.max(0.5, avail / base.width));
+  const vp = page.getViewport({ scale: state.scale });
+  const dpr = window.devicePixelRatio || 1;
+  const cv = $('cv');
+  cv.width = vp.width * dpr; cv.height = vp.height * dpr;
+  cv.style.width = vp.width + 'px'; cv.style.height = vp.height + 'px';
+  await page.render({ canvasContext: cv.getContext('2d'), viewport: page.getViewport({ scale: state.scale * dpr }) }).promise;
+  $('page').hidden = false; $('empty').hidden = true; $('pager').hidden = false;
+  $('page').style.width = vp.width + 'px'; $('page').style.height = vp.height + 'px';
+  $('pgLbl').textContent = `Page ${state.page + 1} of ${state.pdf.numPages}`;
+  $('prevPg').disabled = state.page === 0; $('nextPg').disabled = state.page >= state.pdf.numPages - 1;
+  drawBoxes();
+}
+$('prevPg').onclick = () => { state.page--; state.fields.page = state.page; renderPage(); };
+$('nextPg').onclick = () => { state.page++; state.fields.page = state.page; renderPage(); };
+let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => state.pdf && renderPage(), 150); });
+
+function drawBoxes(){
+  document.querySelectorAll('.fbox').forEach(b => b.remove());
+  const s = state.scale;
+  for(const d of FIELD_DEFS){
+    const f = state.fields[d.k];
+    const el = document.createElement('div');
+    el.className = 'fbox ' + d.cls;
+    el.innerHTML = `<span class="lbl">${d.label}</span><span class="rz"></span>`;
+    if(d.k === 'gsmSig' && state.signer){ const img = new Image(); img.src = state.signer.signature_png; el.prepend(img); }
+    const place = () => Object.assign(el.style, { left: f.x*s+'px', top: f.y*s+'px', width: f.w*s+'px', height: f.h*s+'px' });
+    place();
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      const resizing = e.target.classList.contains('rz');
+      const sx = e.clientX, sy = e.clientY, o = { ...f };
+      const move = ev => {
+        const dx = (ev.clientX - sx) / s, dy = (ev.clientY - sy) / s;
+        if(resizing){ f.w = Math.max(30, o.w + dx); f.h = Math.max(10, o.h + dy); }
+        else {
+          f.x = Math.min(Math.max(0, o.x + dx), state.pageW - f.w);
+          f.y = Math.min(Math.max(0, o.y + dy), state.pageH - f.h);
+        }
+        place();
+      };
+      const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+      el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+    });
+    $('page').appendChild(el);
+  }
+}
+
+/* ===================== Grapeseed signer ===================== */
+const pad = SigPad($('gsmPad'), { nameInput: $('gsmName') });
+const EMAIL_KEY = 'axm_esign_gsm_email';
+try { $('gsmEmail').value = localStorage.getItem(EMAIL_KEY) || ''; } catch(e){}
+
+async function lookupSigner(){
+  const email = $('gsmEmail').value.trim().toLowerCase();
+  state.signer = null; $('gsmOnFile').hidden = true; $('gsmSetup').hidden = true; msg('gsmMsg');
+  updateCreate();
+  if(!email) return;
+  if(!/^[^@\s]+@grapeseedmedia\.com$/i.test(email)){ msg('gsmMsg', 'err', 'Use your @grapeseedmedia.com email.'); return; }
+  try { localStorage.setItem(EMAIL_KEY, email); } catch(e){}
+  try {
+    const { signer } = await api('signer_get', { email });
+    if(signer){ showSigner(signer); }
+    else { $('gsmSetup').hidden = false; $('gsmCancel').hidden = true; }
+  } catch(e){ msg('gsmMsg', 'err', e.message); }
+}
+function showSigner(signer){
+  state.signer = signer;
+  $('gsmSigImg').src = signer.signature_png;
+  $('gsmWho').innerHTML = `${esc(signer.name)}<br>${esc(signer.email)}`;
+  $('gsmOnFile').hidden = false; $('gsmSetup').hidden = true;
+  if(state.pdf) drawBoxes();
+  updateCreate();
+}
+$('gsmEmail').addEventListener('change', lookupSigner);
+$('gsmChange').onclick = () => {
+  $('gsmName').value = state.signer ? state.signer.name : ''; pad.syncFromName();
+  $('gsmOnFile').hidden = true; $('gsmSetup').hidden = false; $('gsmCancel').hidden = false;
+};
+$('gsmCancel').onclick = () => state.signer && showSigner(state.signer);
+$('gsmSave').onclick = async () => {
+  const email = $('gsmEmail').value.trim().toLowerCase(), name = $('gsmName').value.trim();
+  if(!name){ msg('gsmMsg', 'err', 'Enter your full name.'); return; }
+  const png = await pad.toPNG();
+  if(!png){ msg('gsmMsg', 'err', 'Add a signature first.'); return; }
+  $('gsmSave').disabled = true;
+  try {
+    await api('signer_save', { email, name, signature_png: png });
+    showSigner({ email, name, signature_png: png });
+    msg('gsmMsg', 'ok', 'Signature saved.');
+  } catch(e){ msg('gsmMsg', 'err', e.message); }
+  $('gsmSave').disabled = false;
+};
+
+/* ===================== create ===================== */
+function updateCreate(){ $('create').disabled = !(state.bytes && state.signer); }
+
+function b64(bytes){
+  let s = ''; const CH = 0x8000;
+  for(let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(s);
+}
+const linkFor = token => new URL('sign.html#t=' + encodeURIComponent(token), location.href).href;
+
+$('create').onclick = async () => {
+  const item = $('mondayItem').value.trim();
+  if(item && !/^\d+$/.test(item)){ msg('createMsg', 'err', 'Monday item ID should be numbers only.'); return; }
+  $('create').disabled = true; msg('createMsg', '', ''); $('createMsg').style.display = 'block'; $('createMsg').textContent = 'Creating…';
+  try {
+    const { token } = await api('create', {
+      pdf_b64: b64(state.bytes), file_name: state.fileName, title: state.title,
+      monday_item_id: item, gsm_email: state.signer.email, local_date: localDate(),
+      client_name: $('cliName').value.trim(), client_email: $('cliEmail').value.trim(),
+      fields: { ...state.fields, page: state.page },
+    });
+    $('linkOut').value = linkFor(token); $('linkBox').hidden = false;
+    msg('createMsg', 'ok', 'Signing link ready. Your signature is applied; send this link to the client.');
+    copy(linkFor(token));
+    refreshList();
+  } catch(e){ msg('createMsg', 'err', e.message); }
+  updateCreate();
+};
+async function copy(text){ try { await navigator.clipboard.writeText(text); toast('Link copied'); } catch(e){ toast('Copy failed: select the link and copy it'); } }
+$('copyLink').onclick = () => copy($('linkOut').value);
+
+/* ===================== sent list ===================== */
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('placeView').hidden = b.dataset.v !== 'place'; $('listView').hidden = b.dataset.v !== 'list';
+  if(b.dataset.v === 'list') refreshList(); else if(state.pdf) renderPage();
+});
+const fmt = d => d ? new Date(d).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+const MONDAY_LBL = { done:'Attached', error:'Error', skipped:'Skipped', pending:'Pending' };
+let rows = [];
+async function refreshList(){
+  try { rows = (await api('list')).rows || []; }
+  catch(e){ $('rows').innerHTML = `<tr><td colspan="6" class="s">${esc(e.message)}</td></tr>`; return; }
+  const open = rows.filter(r => r.status === 'sent' || r.status === 'viewed').length;
+  $('sentCount').textContent = open ? `(${open} open)` : '';
+  if(!rows.length){ $('rows').innerHTML = '<tr><td colspan="6" class="s">Nothing sent yet.</td></tr>'; return; }
+  $('rows').innerHTML = rows.map(r => {
+    const st = r.status === 'signed' ? `<span class="pill signed">Signed</span><div class="s">${fmt(r.signed_at)} · ${esc(r.signer_name)}</div>`
+      : r.status === 'viewed' ? `<span class="pill viewed">Viewed</span><div class="s">${fmt(r.viewed_at)}</div>`
+      : `<span class="pill ${r.status}">${r.status === 'void' ? 'Withdrawn' : 'Sent'}</span>`;
+    const mon = r.monday_status ? `<span class="pill ${r.monday_status}" title="${esc(r.monday_error || '')}">${MONDAY_LBL[r.monday_status]}</span>`
+      + (r.monday_error && r.monday_status !== 'done' ? `<div class="s">${esc(r.monday_error)}</div>` : '')
+      : `<span class="s">${r.monday_item_id ? 'On signing' : '—'}</span>`;
+    const acts = [];
+    if(r.status === 'signed') acts.push(`<button class="btn sm" data-a="signed" data-id="${r.id}">Signed PDF</button>`);
+    else if(r.status !== 'void') acts.push(`<button class="btn sm" data-a="copy" data-id="${r.id}">Copy link</button>`);
+    acts.push(`<button class="btn sm" data-a="draft" data-id="${r.id}">Draft</button>`);
+    if(r.status === 'signed' && r.monday_status !== 'done') acts.push(`<button class="btn sm" data-a="monday" data-id="${r.id}">Push to Monday</button>`);
+    if(r.status === 'sent' || r.status === 'viewed') acts.push(`<button class="btn sm" data-a="void" data-id="${r.id}">Withdraw</button>`);
+    return `<tr>
+      <td><div class="t">${esc(r.title || r.file_name)}</div><div class="s">by ${esc(r.gsm_name || r.gsm_email)}${r.monday_item_id ? ' · item ' + esc(r.monday_item_id) : ''}</div></td>
+      <td>${esc(r.client_name || '')}<div class="s">${esc(r.client_email || '')}</div></td>
+      <td>${st}</td><td>${mon}</td><td class="s">${fmt(r.created_at)}</td>
+      <td><div class="acts">${acts.join('')}</div></td></tr>`;
+  }).join('');
+}
+$('rows').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-a]'); if(!b) return;
+  const r = rows.find(x => x.id === b.dataset.id); if(!r) return;
+  try {
+    if(b.dataset.a === 'copy') copy(linkFor(r.token));
+    if(b.dataset.a === 'signed' || b.dataset.a === 'draft'){ const { url } = await api('file', { id: r.id, which: b.dataset.a }); window.open(url, '_blank'); }
+    if(b.dataset.a === 'void'){ if(!confirm('Withdraw this signing link? The client will no longer be able to sign.')) return; await api('void', { id: r.id }); refreshList(); }
+    if(b.dataset.a === 'monday'){
+      let item = r.monday_item_id || '';
+      const ans = prompt('Monday Contracts item ID to attach the signed IO to:', item);
+      if(ans === null) return;
+      b.disabled = true;
+      const res = await api('monday_retry', { id: r.id, monday_item_id: ans.trim() });
+      toast(res.monday_status === 'done' ? 'Attached to Monday' : (res.monday_error || res.monday_status));
+      refreshList();
+    }
+  } catch(err){ toast(err.message); }
+});
+
+/* ===================== boot ===================== */
+(async () => {
+  lookupSigner();
+  refreshList();
+  try {
+    const h = await EsignHandoff.take();
+    if(h && h.blob){
+      await loadFile(new File([h.blob], h.fileName || 'IO.pdf', { type:'application/pdf' }),
+        { fromIo: true, fileName: h.fileName, title: h.title, mondayItemId: h.mondayItemId, fields: h.fields });
+    }
+  } catch(e){ console.warn('handoff failed', e); }
+})();
+</script>
+</body>
+</html>
