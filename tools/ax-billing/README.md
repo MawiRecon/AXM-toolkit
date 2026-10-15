@@ -131,6 +131,16 @@ inbox. The Billing Tracker drains it and creates a pre-filled row — Column A i
 composed as `Entity | Advertiser | Campaign | Flight Start`. You fill the
 actuals (spend, margin, invoice #) later as the campaign runs.
 
+**Duplicate check.** The inbox upserts on its own seed id, so on its own it can't
+see a row someone already typed in by hand. Before writing, each seed is matched
+against live rows (and earlier seeds in the same batch) on **same campaign name**,
+or **same advertiser + start date + IO amount**, which catches a renamed copy. A
+match is still written, never silently skipped, because a second flight can share
+a name. Instead the tracker opens a "Possible duplicate" dialog showing the new
+row next to the existing one(s), with a one-click "Move new row to Trash". It also
+leaves an open ⚑ Flag on the new row, so the warning survives if the dialog is
+closed or the drain ran in someone else's session.
+
 ## Local run
 
 From the repo root: `python -m http.server 8777` → open

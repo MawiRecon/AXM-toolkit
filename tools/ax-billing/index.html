@@ -84,6 +84,15 @@
   .trash-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .trash-meta{color:var(--faint);font-size:11.5px;white-space:nowrap}
   .trash-item .restore{flex:0 0 auto;padding:5px 11px;font-size:12px}
+  /* Duplicate warning (reuses the .hist-modal shell) */
+  .dup-intro{color:var(--muted);font-size:12.5px;padding:12px 0 4px}
+  .dup-item{padding:12px 0;border-bottom:1px solid var(--line-soft)}
+  .dup-item:last-child{border-bottom:0}
+  .dup-new{display:flex;align-items:center;gap:12px}
+  .dup-new .trash-name{font-weight:600}
+  .dup-new .dup-trash{flex:0 0 auto;padding:5px 11px;font-size:12px}
+  .dup-match{color:var(--faint);font-size:12px;margin-top:5px;padding-left:12px;border-left:2px solid var(--err)}
+  .dup-done{color:var(--faint);font-size:12px;flex:0 0 auto}
   .hist-who{font-weight:600}
   .hist-when{color:var(--faint);font-size:12px;margin-left:auto}
   .hist-changes{display:flex;flex-direction:column;gap:3px}
@@ -468,6 +477,17 @@
       <button id="trashClose" class="ghost">Close</button>
     </div>
     <div id="trashBody" class="hist-body"></div>
+  </div>
+</div>
+
+<div id="dupModal" class="hist-modal">
+  <div class="hist-card">
+    <div class="hist-head">
+      <span class="h-t">⚠ Possible duplicate</span>
+      <span id="dupSub" class="h-s"></span>
+      <button id="dupClose" class="ghost">Keep all &amp; close</button>
+    </div>
+    <div id="dupBody" class="hist-body"></div>
   </div>
 </div>
 
@@ -1097,6 +1117,7 @@ document.addEventListener('keydown', e=>{
   if(editingActive) return;                                   // the open editor owns its keys
   if($('histModal').classList.contains('show')) return;       // history modal open
   if($('trashModal').classList.contains('show')) return;      // trash modal open
+  if($('dupModal').classList.contains('show')) return;        // duplicate warning open
   if($('actualsModal').classList.contains('show')) return;    // actuals request/import open
   if($('dd').classList.contains('show')) return;              // header dropdown open
   if($('viewsMenu').classList.contains('show')) return;       // views menu open
@@ -1200,7 +1221,7 @@ function pasteBlock(text){
 document.addEventListener('paste', e=>{
   if(editingActive) return;                                      // editing: let the input paste normally
   if($('histModal').classList.contains('show')||$('trashModal').classList.contains('show')
-     ||$('actualsModal').classList.contains('show')||$('dd').classList.contains('show')) return;
+     ||$('dupModal').classList.contains('show')||$('actualsModal').classList.contains('show')||$('dd').classList.contains('show')) return;
   const ae = document.activeElement;
   if(ae && ae!==document.body && !$('wrap').contains(ae)) return; // paste meant for search / name box
   if(!sel) return;
@@ -2274,10 +2295,17 @@ function drainInbox(){
     return seed;
   });
 
+  // Check BEFORE the write, against the rows as they stand now. The row is still
+  // written either way — a second flight can legitimately share a name — but the
+  // person sees it at that moment and the row carries a Flag until someone decides.
+  const dups = findInboxDups(mapped);
+
   store.bulkUpsert(mapped).then(n=>{
     removeDrained(batch);            // only now is it safe to forget these
-    toast(`${n} row(s) added from the IO Tool`, true);
+    if(!dups.length) toast(`${n} row(s) added from the IO Tool`, true);
+    if(dups.length) flagDups(dups);
     return reload().then(()=>{
+      if(dups.length) openDupWarning(dups);
       // scroll to the newly-added rows and briefly flash-highlight them so the user
       // can't miss where the send landed
       const w = $('wrap'); if(w) w.scrollTop = w.scrollHeight;
@@ -2296,6 +2324,77 @@ function drainInbox(){
   }).finally(()=>{ drainInFlight = false; });
 }
 window.addEventListener('storage', e=>{ if(e.key===INBOX) drainInbox(); });
+
+/* ---------- Duplicate check for IO Tool rows ----------
+   The inbox upserts on its own seed id, so it can't see a row someone already typed
+   in by hand (or one that came from a different browser's send). Match on what a
+   human would call "the same IO": same campaign name, or same advertiser + start
+   date + IO amount (catches a renamed copy). A re-drain of the same seed id is an
+   update, not a duplicate, so it's excluded. */
+const dupNorm = s => String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim();
+function isSameIo(a, b){
+  if(!a || !b || a.id===b.id) return false;
+  const na = dupNorm(a.campaign_name);
+  if(na && na===dupNorm(b.campaign_name)) return true;
+  const adv = dupNorm(a.advertiser);
+  return !!adv && adv===dupNorm(b.advertiser)
+    && !!a.campaign_start && a.campaign_start===b.campaign_start
+    && a.io_amount!=null && b.io_amount!=null && +a.io_amount===+b.io_amount;
+}
+function findInboxDups(mapped){
+  const out = [];
+  mapped.forEach((m,i)=>{
+    // existing live rows, plus earlier seeds in this same batch (double send)
+    const pool = rows.concat(mapped.slice(0,i));
+    const matches = pool.filter(r=>isSameIo(m, r));
+    if(matches.length) out.push({ row:m, matches });
+  });
+  return out;
+}
+/* Persist the warning as an open Flag on the new row, so it's still visible (open-
+   flags chip, ⚑ column) if the dialog is closed or the drain ran in someone else's
+   session. Best-effort: a failed comment never blocks the row itself. */
+function flagDups(dups){
+  dups.forEach(d=>{
+    const m = d.matches[0];
+    const inv = m.invoice_no ? `inv #${m.invoice_no}` : 'no invoice #';
+    const body = `Possible duplicate: ${d.matches.length>1?d.matches.length+' rows':'a row'} already `
+      + `exist${d.matches.length>1?'':'s'} for this IO (${m.campaign_name||m.campaign_label||'unnamed'}, `
+      + `${money(m.io_amount)||"no IO amount"}, ${inv}). Trash one if it's the same IO; resolve this flag if both are real.`;
+    store.addComment({ row_id:d.row.id, parent_id:null, kind:'flag', body, author:'IO Tool' })
+      .catch(err=>console.warn('dup flag failed', err));
+  });
+}
+function openDupWarning(dups){
+  const n = dups.length;
+  $('dupSub').textContent = `${n} row${n===1?'':'s'} from the IO Tool`;
+  $('dupBody').innerHTML =
+      `<div class="dup-intro">The IO Tool just added ${n===1?'a row that matches':'rows that match'} `
+    + `an existing line. ${n===1?'It was':'They were'} added and flagged ⚑. If it's the same IO, `
+    + `move the new row to Trash; if it's a separate flight, keep it and resolve the flag.</div>`
+    + dups.map(d=>{
+        const r = d.row;
+        const desc = x => [money(x.io_amount)||"no IO amount", x.campaign_start||'no start',
+          x.invoice_no?('inv #'+x.invoice_no):'no invoice #', 'added by '+(x.updated_by||'?')].map(esc).join(' · ');
+        return `<div class="dup-item" data-id="${esc(r.id)}">`
+          + `<div class="dup-new"><span class="trash-name">New: ${esc(r.campaign_name||r.campaign_label||'(unnamed row)')}</span>`
+          + `<button class="dup-trash">Move new row to Trash</button></div>`
+          + d.matches.map(m=>`<div class="dup-match">Already in tracker: ${esc(m.campaign_name||m.campaign_label||'(unnamed row)')}<br>${desc(m)}</div>`).join('')
+          + `</div>`;
+      }).join('');
+  $('dupModal').classList.add('show');
+}
+$('dupBody').addEventListener('click', e=>{
+  const btn = e.target.closest('.dup-trash'); if(!btn) return;
+  if(!requireEdit()) return;
+  const item = btn.closest('.dup-item'), id = item.dataset.id;
+  btn.disabled = true;
+  store.softDelete(id, actor).then(reload).then(()=>{
+    btn.outerHTML = '<span class="dup-done">Moved to Trash</span>';
+  }).catch(err=>{ btn.disabled = false; toast('Delete failed: '+err.message, false); });
+});
+function closeDup(){ $('dupModal').classList.remove('show'); }
+$('dupClose').onclick = closeDup;
 
 /* ---------- header dropdown: sort + per-column value filter ----------
    Behaves like Google Sheets: click a header to see Sort A→Z / Z→A and a
