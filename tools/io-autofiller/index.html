@@ -2324,9 +2324,16 @@ document.addEventListener('DOMContentLoaded', () => {
       tactics:$("f_tactics").value, environment:$("f_environment").value, goal:$("f_goal").value,
       kpi:$("f_kpi").value, secondary:$("f_secondary").value, mediaNotes:$("f_medianotes").value
     };
-    navigator.clipboard.writeText(JSON.stringify(obj,null,2)).then(()=>{
-      const s = $("status"); s.style.display="block"; s.className="status ok"; s.textContent="Copied JSON to clipboard.";
-    });
+    // navigator.clipboard is https-only; fall back to execCommand over plain http.
+    const text = JSON.stringify(obj,null,2);
+    const legacy = () => { const ta = document.createElement('textarea'); ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-9999px'; document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch(e){} ta.remove();
+      return ok ? Promise.resolve() : Promise.reject(new Error('copy blocked')); };
+    const s = $("status"); s.style.display="block";
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text).catch(legacy) : legacy())
+      .then(()=>{ s.className="status ok"; s.textContent="Copied JSON to clipboard."; },
+            ()=>{ s.className="status err"; s.textContent="Copy failed — your browser blocked clipboard access."; });
   };
 
   /* ==== IO history (Supabase-backed) ===================================

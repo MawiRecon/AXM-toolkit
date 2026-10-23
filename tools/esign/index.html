@@ -420,7 +420,21 @@ $('create').onclick = async () => {
   } catch(e){ msg('createMsg', 'err', e.message); }
   updateCreate();
 };
-async function copy(text){ try { await navigator.clipboard.writeText(text); toast('Link copied'); } catch(e){ toast('Copy failed: select the link and copy it'); } }
+/* navigator.clipboard only exists on https (secure) pages; fall back to the
+   legacy execCommand copy so it still works over plain http. */
+function copyText(s){
+  const legacy = () => new Promise((res, rej) => {
+    const ta = document.createElement('textarea'); ta.value = s;
+    ta.style.cssText = 'position:fixed;top:-9999px'; document.body.appendChild(ta);
+    ta.select(); let ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){}
+    ta.remove();
+    ok ? res() : rej(new Error('copy blocked'));
+  });
+  if(navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s).catch(legacy);
+  return legacy();
+}
+async function copy(text){ try { await copyText(text); toast('Link copied'); } catch(e){ toast('Copy failed: select the link and copy it'); } }
 $('copyLink').onclick = () => copy($('linkOut').value);
 
 /* ===================== sent list ===================== */
