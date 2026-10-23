@@ -210,7 +210,7 @@
       <span class="history-count" id="history_count"></span>
     </summary>
     <div class="history-body">
-      <input id="history_search" type="text" placeholder="Search advertiser or campaign…" autocomplete="off">
+      <input id="history_search" type="text" placeholder="Search all saved IOs by advertiser or campaign…" autocomplete="off">
       <div id="history_list" class="history-list"></div>
     </div>
   </details>
@@ -2403,7 +2403,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(res.error) throw res.error;
       HISTORY_CACHE = res.data || [];
       HISTORY_ERROR = null;
-      iohistoryRender($("history_search").value.trim());
+      iohistorySearch($("history_search").value);
     } catch(e){
       HISTORY_ERROR = e;
       console.warn('io_history refresh failed', e);
@@ -2411,17 +2411,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /* The cache only holds the newest 50 rows, so a search also queries the whole
+     table: the cache is filtered instantly, then the server results replace it. */
+  let HISTORY_RESULTS = null;   // server rows for the current query; null = still searching, false = failed
+  let HISTORY_SEARCH_SEQ = 0, HISTORY_SEARCH_TIMER = null;
+  function iohistorySearch(query){
+    const q = (query || '').trim();
+    const seq = ++HISTORY_SEARCH_SEQ;   // drops any in-flight search for an older query
+    HISTORY_RESULTS = null;
+    clearTimeout(HISTORY_SEARCH_TIMER);
+    iohistoryRender(q);
+    if(!q) return;
+    HISTORY_SEARCH_TIMER = setTimeout(async () => {
+      const c = iohistoryInit(); if(!c) return;
+      // Quoted so commas, dots and parens in a name can't break the or() filter
+      const v = '"*' + q.replace(/[\\"]/g, '\\$&') + '*"';
+      try {
+        const res = await c.from(HISTORY_TABLE).select('*')
+          .or(`advertiser.ilike.${v},campaign.ilike.${v},io_title.ilike.${v}`)
+          .order('created_at', { ascending: false }).limit(50);
+        if(res.error) throw res.error;
+        if(seq !== HISTORY_SEARCH_SEQ) return;
+        HISTORY_RESULTS = res.data || [];
+        iohistoryRender(q);
+      } catch(e){
+        console.warn('io_history search failed', e);
+        if(seq === HISTORY_SEARCH_SEQ){ HISTORY_RESULTS = false; iohistoryRender(q); } // fall back to the cache filter
+      }
+    }, 250);
+  }
+
   function iohistoryRender(query){
     const list = $("history_list"); const count = $("history_count");
     if(!list) return;
     const q = (query || '').toLowerCase();
-    const rows = q
-      ? HISTORY_CACHE.filter(r =>
+    const searching = !!q && HISTORY_RESULTS === null;
+    const rows = !q ? HISTORY_CACHE
+      : HISTORY_RESULTS || HISTORY_CACHE.filter(r =>
           (r.advertiser || '').toLowerCase().includes(q) ||
           (r.campaign   || '').toLowerCase().includes(q) ||
-          (r.io_title   || '').toLowerCase().includes(q))
-      : HISTORY_CACHE;
-    count.textContent = HISTORY_CACHE.length ? `${rows.length}/${HISTORY_CACHE.length}` : '';
+          (r.io_title   || '').toLowerCase().includes(q));
+    count.textContent = !HISTORY_CACHE.length ? ''
+      : q ? `${rows.length}${HISTORY_RESULTS && rows.length >= 50 ? '+' : ''} found`
+      : `${HISTORY_CACHE.length} recent`;
     if(HISTORY_ERROR){
       const msg = (HISTORY_ERROR.code === 'PGRST205')
         ? 'Table <code>io_history</code> not found. Run <code>tools/io-autofiller/schema.sql</code> in the Supabase SQL editor.'
@@ -2434,7 +2466,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if(!rows.length){
-      list.innerHTML = '<div class="history-empty">No matches.</div>';
+      list.innerHTML = `<div class="history-empty">${searching ? 'Searching all saved IOs…' : 'No matches.'}</div>`;
       return;
     }
     list.innerHTML = rows.slice(0, 20).map(r => {
@@ -2448,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
     list.querySelectorAll('.history-row').forEach(el => {
       el.onclick = () => {
-        const row = HISTORY_CACHE.find(r => r.id === el.dataset.id);
+        const row = rows.find(r => r.id === el.dataset.id);
         if(row) iohistoryHydrate(row);
       };
     });
@@ -2456,12 +2488,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* Populate every editable field from a stored row's `fields` blob.
      Uses the same setters the parser does so channel selects, the KPI/Tactics
-     multi-selects, contacts, etc. all round-trip. */
+     multi-selects, contacts, etc. all round-trip.
+     The row's Monday item is deliberately NOT carried over (and any ID already in
+     the box is cleared): saves upsert on monday_item_id, so keeping it would
+     overwrite the old IO's history row, and E-Sign would write back to the old
+     Contracts item. A loaded IO is always a new IO. */
   function iohistoryHydrate(row){
     applyIoSnapshot(row.fields || {});
-    if(row.monday_item_id) $("monday_item").value = row.monday_item_id;
+    $("monday_item").value = '';
     const s = $("status"); if(s){ s.style.display='block'; s.className='status ok';
-      s.textContent = `Loaded from history: ${row.io_title || row.advertiser}`; }
+      s.textContent = `Loaded from history: ${row.io_title || row.advertiser}` +
+        (row.monday_item_id ? ` · saves as a new IO (Monday item ${row.monday_item_id} not carried over)` : ''); }
     const panel = $("history_panel"); if(panel) panel.open = false;
   }
 
@@ -2477,7 +2514,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $("send_sign").onclick = () => generatePdf({ send: true });
 
   // Wire the picker
-  if($("history_search")) $("history_search").oninput = (e) => iohistoryRender(e.target.value);
+  if($("history_search")) $("history_search").oninput = (e) => iohistorySearch(e.target.value);
   iohistoryRefresh();
 
   renderPreview();
